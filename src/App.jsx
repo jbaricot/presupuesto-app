@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { LayoutDashboard, Receipt, Target, TrendingUp, Tags, SlidersHorizontal, Wallet, LogOut, Loader2 } from "lucide-react";
 import { supabase } from "./supabaseClient.js";
 import { C, FONTS, DEFAULT_CATEGORIES, DEFAULT_BUDGET } from "./theme.js";
-import { currentPeriod } from "./lib/helpers.js";
+import { currentPeriod } from "./lib/payCycle.js";
 import Login from "./components/Login.jsx";
 import Dashboard from "./tabs/Dashboard.jsx";
 import TransactionsTab from "./tabs/Transactions.jsx";
@@ -28,7 +28,8 @@ export default function App() {
   const [session, setSession] = useState(undefined); // undefined = checking, null = logged out
   const [loadingData, setLoadingData] = useState(true);
   const [tab, setTab] = useState("dashboard");
-  const [period, setPeriod] = useState(currentPeriod());
+  const [period, setPeriod] = useState(currentPeriod(1));
+  const [periodInitialized, setPeriodInitialized] = useState(false);
 
   const [categories, setCategories] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -60,10 +61,17 @@ export default function App() {
       setGoals(gls);
       setContributions(contribs);
       setInvestments(invs);
-      setBudget(bdg || DEFAULT_BUDGET);
+      const finalBudget = bdg || DEFAULT_BUDGET;
+      setBudget(finalBudget);
+      if (!periodInitialized) {
+        setPeriod(currentPeriod(finalBudget.pay_day || 1));
+        setPeriodInitialized(true);
+      }
       setLoadingData(false);
     })();
   }, [userId]);
+
+  const payDay = budget.pay_day || 1;
 
   const signOut = () => supabase.auth.signOut();
 
@@ -134,16 +142,16 @@ export default function App() {
 
           <div style={{ padding: 26 }}>
             {tab === "dashboard" && (
-              <Dashboard transactions={transactions} goals={goals} contributions={contributions} investments={investments} budget={budget} period={period} setPeriod={setPeriod} />
+              <Dashboard transactions={transactions} goals={goals} contributions={contributions} investments={investments} budget={budget} period={period} setPeriod={setPeriod} payDay={payDay} />
             )}
             {tab === "transacciones" && (
-              <TransactionsTab userId={userId} transactions={transactions} setTransactions={setTransactions} categories={categories} period={period} setPeriod={setPeriod} />
+              <TransactionsTab userId={userId} transactions={transactions} setTransactions={setTransactions} categories={categories} period={period} setPeriod={setPeriod} payDay={payDay} />
             )}
             {tab === "metas" && (
-              <GoalsTab userId={userId} goals={goals} setGoals={setGoals} contributions={contributions} setContributions={setContributions} period={period} />
+              <GoalsTab userId={userId} goals={goals} setGoals={setGoals} contributions={contributions} setContributions={setContributions} period={period} payDay={payDay} />
             )}
             {tab === "inversiones" && (
-              <InvestmentsTab userId={userId} investments={investments} setInvestments={setInvestments} />
+              <InvestmentsTab userId={userId} investments={investments} setInvestments={setInvestments} payDay={payDay} />
             )}
             {tab === "categorias" && (
               <CategoriesTab userId={userId} categories={categories} setCategories={setCategories} />

@@ -1,6 +1,8 @@
 import React from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { C } from "../theme.js";
 import { fmtCompact } from "../lib/helpers.js";
+import { shiftPeriod, cyclePeriodLabel } from "../lib/payCycle.js";
 
 export function Card({ children, style, ...rest }) {
   return (
@@ -90,6 +92,27 @@ export function PeriodPicker({ period, setPeriod }) {
       onChange={(e) => setPeriod(e.target.value)}
       style={{ ...inputStyle, fontFamily: "'IBM Plex Mono',monospace", fontSize: 13.5 }}
     />
+  );
+}
+
+/** Navegador de ciclo de pago: ‹  26 Jul – 25 Ago 2026  › */
+export function PeriodNav({ period, setPeriod, payDay }) {
+  const label = cyclePeriodLabel(period, payDay);
+  const btnStyle = {
+    background: C.white, border: `1px solid ${C.line}`, borderRadius: 6, width: 28, height: 28,
+    display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: C.inkSoft,
+  };
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <button style={btnStyle} onClick={() => setPeriod(shiftPeriod(period, -1))} aria-label="Ciclo anterior"><ChevronLeft size={15} /></button>
+      <div style={{
+        fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, fontWeight: 600, color: C.ink,
+        background: C.white, border: `1px solid ${C.line}`, borderRadius: 7, padding: "6px 12px", minWidth: 150, textAlign: "center",
+      }}>
+        {label}
+      </div>
+      <button style={btnStyle} onClick={() => setPeriod(shiftPeriod(period, 1))} aria-label="Ciclo siguiente"><ChevronRight size={15} /></button>
+    </div>
   );
 }
 

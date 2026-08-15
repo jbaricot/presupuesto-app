@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Plus, X, Pencil, Trash2 } from "lucide-react";
 import { C, TX_TYPES, TX_TYPE_LABEL, PAYMENT_METHODS } from "../theme.js";
-import { fmtCOP, fmtCompact, periodLabel } from "../lib/helpers.js";
-import { Card, SectionTitle, PeriodPicker, Field, inputStyle, Btn, Empty } from "../components/ui.jsx";
+import { fmtCOP, fmtCompact } from "../lib/helpers.js";
+import { periodForDate, cyclePeriodLabel } from "../lib/payCycle.js";
+import { Card, SectionTitle, PeriodNav, Field, inputStyle, Btn, Empty } from "../components/ui.jsx";
 import { addTransaction, updateTransaction, deleteTransaction } from "../lib/data.js";
 
 function emptyTx(period) {
   return { period, date: "", name: "", type: "variable", category: "", payment_method: "Débito", value: "", paid: false };
 }
 
-export default function TransactionsTab({ userId, transactions, setTransactions, categories, period, setPeriod }) {
+export default function TransactionsTab({ userId, transactions, setTransactions, categories, period, setPeriod, payDay }) {
   const [form, setForm] = useState(emptyTx(period));
   const [editingId, setEditingId] = useState(null);
   const [filterType, setFilterType] = useState("todos");
@@ -32,7 +33,10 @@ export default function TransactionsTab({ userId, transactions, setTransactions,
     if (!form.name || !form.value) return;
     setSaving(true);
     try {
-      const payload = { ...form, period, value: Number(form.value), date: form.date || null };
+      // Si hay fecha, el ciclo de pago al que pertenece se calcula automáticamente;
+      // si no hay fecha, se usa el ciclo que estás viendo en pantalla.
+      const derivedPeriod = form.date ? periodForDate(form.date, payDay) : period;
+      const payload = { ...form, period: derivedPeriod, value: Number(form.value), date: form.date || null };
       if (editingId) {
         const updated = await updateTransaction(editingId, payload);
         setTransactions(transactions.map((t) => (t.id === editingId ? updated : t)));
@@ -58,7 +62,7 @@ export default function TransactionsTab({ userId, transactions, setTransactions,
 
   return (
     <div>
-      <SectionTitle eyebrow="Registro" title="Transacciones" right={<PeriodPicker period={period} setPeriod={setPeriod} />} />
+      <SectionTitle eyebrow="Registro" title="Transacciones" right={<PeriodNav period={period} setPeriod={setPeriod} payDay={payDay} />} />
 
       <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 20, alignItems: "start" }}>
         <Card style={{ padding: 18 }}>
@@ -90,6 +94,11 @@ export default function TransactionsTab({ userId, transactions, setTransactions,
             <Field label="Fecha">
               <input type="date" style={inputStyle} value={form.date || ""} onChange={(e) => setForm({ ...form, date: e.target.value })} />
             </Field>
+            {form.date && (
+              <div style={{ fontSize: 11.5, color: C.inkFaint, marginTop: -4 }}>
+                Se registrará en el ciclo: <strong style={{ color: C.inkSoft }}>{cyclePeriodLabel(periodForDate(form.date, payDay), payDay)}</strong>
+              </div>
+            )}
             <Field label="Valor (COP)">
               <input type="number" min="0" style={inputStyle} value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} placeholder="0" required />
             </Field>
@@ -116,7 +125,7 @@ export default function TransactionsTab({ userId, transactions, setTransactions,
           </div>
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3 }}>{periodLabel(period).toUpperCase()}</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3 }}>{cyclePeriodLabel(period, payDay).toUpperCase()}</div>
             <select style={{ ...inputStyle, fontSize: 12.5, padding: "5px 8px" }} value={filterType} onChange={(e) => setFilterType(e.target.value)}>
               <option value="todos">Todos los tipos</option>
               {TX_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}

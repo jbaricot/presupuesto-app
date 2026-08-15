@@ -9,17 +9,26 @@ export default function BudgetTab({ userId, budget, setBudget }) {
   const [form, setForm] = useState({
     provision: String(budget.provision || ""), fijos: String(budget.fijos || ""),
     creditos: String(budget.creditos || ""), variables: String(budget.variables || ""),
+    pay_day: String(budget.pay_day || 1),
   });
 
   useEffect(() => {
-    setForm({ provision: String(budget.provision || ""), fijos: String(budget.fijos || ""), creditos: String(budget.creditos || ""), variables: String(budget.variables || "") });
+    setForm({
+      provision: String(budget.provision || ""), fijos: String(budget.fijos || ""),
+      creditos: String(budget.creditos || ""), variables: String(budget.variables || ""),
+      pay_day: String(budget.pay_day || 1),
+    });
   }, [budget]);
 
   const total = ["provision", "fijos", "creditos", "variables"].reduce((a, k) => a + Number(form[k] || 0), 0);
 
   const submit = async (e) => {
     e.preventDefault();
-    const payload = { provision: Number(form.provision || 0), fijos: Number(form.fijos || 0), creditos: Number(form.creditos || 0), variables: Number(form.variables || 0) };
+    const payload = {
+      provision: Number(form.provision || 0), fijos: Number(form.fijos || 0),
+      creditos: Number(form.creditos || 0), variables: Number(form.variables || 0),
+      pay_day: Math.min(Math.max(Number(form.pay_day || 1), 1), 28),
+    };
     const saved = await upsertBudget(userId, payload);
     setBudget(saved);
   };
@@ -34,9 +43,21 @@ export default function BudgetTab({ userId, budget, setBudget }) {
   return (
     <div>
       <SectionTitle eyebrow="Metas mensuales" title="Presupuesto" />
+      <Card style={{ padding: 22, maxWidth: 480, marginBottom: 20 }}>
+        <div style={{ fontSize: 12, color: C.inkFaint, marginBottom: 16 }}>
+          El día en que recibes tu ingreso principal. Con esto, tus períodos dejan de ser meses calendario y pasan a ser ciclos de pago — por ejemplo, si te pagan el 26, cada ciclo va del 26 de un mes al 25 del siguiente, agrupando así los últimos días del mes con el mes que ese pago financia.
+        </div>
+        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <Field label="Día de pago del mes (1–28)">
+            <input type="number" min="1" max="28" style={inputStyle} value={form.pay_day} onChange={(e) => setForm({ ...form, pay_day: e.target.value })} />
+          </Field>
+          <Btn type="submit"><Check size={14} /> Guardar día de pago</Btn>
+        </form>
+      </Card>
+
       <Card style={{ padding: 22, maxWidth: 480 }}>
         <div style={{ fontSize: 12, color: C.inkFaint, marginBottom: 16 }}>
-          Define cuánto planeas destinar cada mes a cada rubro. El panorama comparará tus gastos reales contra estos límites.
+          Define cuánto planeas destinar cada ciclo a cada rubro. El panorama comparará tus gastos reales contra estos límites.
         </div>
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {ROWS.map((r) => (

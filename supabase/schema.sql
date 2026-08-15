@@ -69,6 +69,7 @@ create table if not exists budget (
   fijos numeric default 0,
   creditos numeric default 0,
   variables numeric default 0,
+  pay_day integer not null default 1,  -- día del mes en que recibes tu ingreso principal (1 = mes calendario normal)
   updated_at timestamptz default now()
 );
 

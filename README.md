@@ -78,6 +78,16 @@ supabase/
   schema.sql            # esquema completo con Row Level Security
 ```
 
+## Ciclos de pago (si te pagan en una fecha distinta al 1°)
+
+Si tu ingreso llega, por ejemplo, el 26 de cada mes, ve a la pestaña **Presupuesto** y define ese día como tu "día de pago". A partir de ahí:
+
+- Cada período deja de ser un mes calendario y pasa a ser el ciclo real de tu plata: del 26 de un mes al 25 del siguiente.
+- Al registrar una transacción con fecha, la app calcula sola a qué ciclo pertenece (los últimos días del mes quedan agrupados con el ciclo que ese pago financia, no con el mes calendario).
+- Si dejas el día de pago en 1, todo se comporta como mes calendario normal (comportamiento por defecto).
+
+**Si ya desplegaste la app antes de este cambio:** corre `supabase/migration_pay_day.sql` en el SQL Editor de Supabase para agregar la columna nueva sin perder tus datos existentes.
+
 ## Notas
 
 - **Seguridad:** cada tabla tiene Row Level Security activado — aunque la URL sea pública, nadie puede ver o modificar los datos de otra persona, solo los suyos.

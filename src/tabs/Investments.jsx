@@ -2,14 +2,15 @@ import React, { useState, useMemo } from "react";
 import { Plus, X, Pencil, Trash2, PiggyBank } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { C } from "../theme.js";
-import { fmtCOP, fmtCompact, periodLabel, currentPeriod } from "../lib/helpers.js";
+import { fmtCOP, fmtCompact } from "../lib/helpers.js";
+import { currentPeriod, cyclePeriodLabel, monthAbbrev } from "../lib/payCycle.js";
 import { Card, SectionTitle, Field, inputStyle, Btn, Empty } from "../components/ui.jsx";
 import { addInvestment, updateInvestment, deleteInvestment } from "../lib/data.js";
 
 function emptyInv(period) { return { period, date: "", reserva: "", renta_fija: "", renta_variable: "" }; }
 
-export default function InvestmentsTab({ userId, investments, setInvestments }) {
-  const [form, setForm] = useState(emptyInv(currentPeriod()));
+export default function InvestmentsTab({ userId, investments, setInvestments, payDay }) {
+  const [form, setForm] = useState(emptyInv(currentPeriod(payDay)));
   const [editingId, setEditingId] = useState(null);
 
   const chartData = useMemo(() => {
@@ -17,7 +18,7 @@ export default function InvestmentsTab({ userId, investments, setInvestments }) 
     return investments.slice().sort((a, b) => a.period.localeCompare(b.period)).map((i) => {
       const total = Number(i.reserva || 0) + Number(i.renta_fija || 0) + Number(i.renta_variable || 0);
       acc += total;
-      return { label: periodLabel(i.period).slice(0, 3) + " " + i.period.slice(2, 4), acumulado: acc };
+      return { label: monthAbbrev(i.period), acumulado: acc };
     });
   }, [investments]);
 
@@ -35,7 +36,7 @@ export default function InvestmentsTab({ userId, investments, setInvestments }) 
       const created = await addInvestment(userId, payload);
       setInvestments([...investments, created]);
     }
-    setForm(emptyInv(currentPeriod()));
+    setForm(emptyInv(currentPeriod(payDay)));
     setEditingId(null);
   };
 
@@ -64,7 +65,7 @@ export default function InvestmentsTab({ userId, investments, setInvestments }) 
             <Field label="Fecha"><input type="date" style={inputStyle} value={form.date || ""} onChange={(e) => setForm({ ...form, date: e.target.value })} /></Field>
             <div style={{ display: "flex", gap: 8 }}>
               <Btn type="submit"><Plus size={14} /> {editingId ? "Guardar" : "Agregar"}</Btn>
-              {editingId && <Btn variant="ghost" onClick={() => { setForm(emptyInv(currentPeriod())); setEditingId(null); }}><X size={14} /> Cancelar</Btn>}
+              {editingId && <Btn variant="ghost" onClick={() => { setForm(emptyInv(currentPeriod(payDay))); setEditingId(null); }}><X size={14} /> Cancelar</Btn>}
             </div>
           </form>
         </Card>
@@ -91,7 +92,7 @@ export default function InvestmentsTab({ userId, investments, setInvestments }) 
           <Card style={{ overflow: "hidden" }}>
             {investments.length === 0 ? <Empty text="Sin registros todavía." /> : investments.slice().sort((a, b) => b.period.localeCompare(a.period)).map((i, idx) => (
               <div key={i.id} style={{ display: "grid", gridTemplateColumns: "1fr auto auto auto auto auto", gap: 12, alignItems: "center", padding: "10px 14px", borderTop: idx === 0 ? "none" : `1px solid ${C.line}`, fontSize: 13 }}>
-                <div style={{ fontWeight: 600, color: C.ink }}>{periodLabel(i.period)}</div>
+                <div style={{ fontWeight: 600, color: C.ink }}>{cyclePeriodLabel(i.period, payDay)}</div>
                 <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, color: C.inkSoft }}>Reserva {fmtCompact(i.reserva)}</span>
                 <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, color: C.inkSoft }}>R.Fija {fmtCompact(i.renta_fija)}</span>
                 <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, color: C.inkSoft }}>R.Var {fmtCompact(i.renta_variable)}</span>

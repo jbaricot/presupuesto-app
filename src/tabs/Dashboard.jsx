@@ -5,10 +5,11 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
 } from "recharts";
 import { C, CHART_COLORS } from "../theme.js";
-import { fmtCOP, fmtCompact, periodLabel } from "../lib/helpers.js";
-import { Card, SectionTitle, PeriodPicker, ProgressBar, Empty, LedgerStamp } from "../components/ui.jsx";
+import { fmtCOP, fmtCompact } from "../lib/helpers.js";
+import { monthAbbrev } from "../lib/payCycle.js";
+import { Card, SectionTitle, PeriodNav, ProgressBar, Empty, LedgerStamp } from "../components/ui.jsx";
 
-export default function Dashboard({ transactions, goals, contributions, investments, budget, period, setPeriod }) {
+export default function Dashboard({ transactions, goals, contributions, investments, budget, period, setPeriod, payDay }) {
   const periodTx = useMemo(() => transactions.filter((t) => t.period === period), [transactions, period]);
 
   const totals = useMemo(() => {
@@ -39,7 +40,7 @@ export default function Dashboard({ transactions, goals, contributions, investme
       else map[t.period].gastos += Number(t.value || 0);
     });
     return Object.values(map).sort((a, b) => a.period.localeCompare(b.period))
-      .map((d) => ({ ...d, label: periodLabel(d.period).slice(0, 3) + " " + d.period.slice(2, 4) }));
+      .map((d) => ({ ...d, label: monthAbbrev(d.period) }));
   }, [transactions]);
 
   const goalProgress = useMemo(() => {
@@ -60,7 +61,7 @@ export default function Dashboard({ transactions, goals, contributions, investme
 
   return (
     <div>
-      <SectionTitle eyebrow="Este período" title="Panorama" right={<PeriodPicker period={period} setPeriod={setPeriod} />} />
+      <SectionTitle eyebrow="Este período" title="Panorama" right={<PeriodNav period={period} setPeriod={setPeriod} payDay={payDay} />} />
 
       <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 20, marginBottom: 20 }}>
         <Card style={{ padding: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>

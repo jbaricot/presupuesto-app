@@ -53,4 +53,4 @@ export const DEFAULT_CATEGORIES = [
   { name: "Otro", desc: "Renombra si lo necesitas." },
 ];
 
-export const DEFAULT_BUDGET = { provision: 0, fijos: 0, creditos: 0, variables: 0 };
+export const DEFAULT_BUDGET = { provision: 0, fijos: 0, creditos: 0, variables: 0, pay_day: 1 };
