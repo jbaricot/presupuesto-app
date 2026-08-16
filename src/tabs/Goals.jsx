@@ -2,11 +2,11 @@ import React, { useState, useMemo } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { C } from "../theme.js";
 import { fmtCOP } from "../lib/helpers.js";
-import { cyclePeriodLabel } from "../lib/payCycle.js";
+import { cyclePeriodLabelSmart } from "../lib/payCycle.js";
 import { Card, SectionTitle, Field, inputStyle, Btn, ProgressBar, Empty } from "../components/ui.jsx";
 import { addGoal, deleteGoal, addContribution } from "../lib/data.js";
 
-export default function GoalsTab({ userId, goals, setGoals, contributions, setContributions, period, payDay }) {
+export default function GoalsTab({ userId, goals, setGoals, contributions, setContributions, period, payDay, incomeAnchors }) {
   const [form, setForm] = useState({ name: "", total: "", dueDate: "" });
   const [contribValues, setContribValues] = useState({});
 
@@ -43,7 +43,7 @@ export default function GoalsTab({ userId, goals, setGoals, contributions, setCo
   return (
     <div>
       <SectionTitle eyebrow="A futuro" title="Metas financieras" />
-      <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 20, alignItems: "start" }}>
+      <div className="mlc-grid-form-s">
         <Card style={{ padding: 18 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3, marginBottom: 12 }}>NUEVA META</div>
           <form onSubmit={submitGoal} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -69,7 +69,7 @@ export default function GoalsTab({ userId, goals, setGoals, contributions, setCo
               </div>
               <div style={{ marginTop: 10 }}><ProgressBar pct={g.pct} color={C.gold} /></div>
               <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center" }}>
-                <input type="number" min="0" placeholder={`Aporte para ${cyclePeriodLabel(period, payDay)}`} style={{ ...inputStyle, flex: 1 }}
+                <input type="number" min="0" placeholder={`Aporte para ${cyclePeriodLabelSmart(period, payDay, incomeAnchors)}`} style={{ ...inputStyle, flex: 1 }}
                   value={contribValues[g.id] || ""} onChange={(e) => setContribValues({ ...contribValues, [g.id]: e.target.value })} />
                 <Btn variant="ghost" onClick={() => submitContribution(g.id)}><Plus size={14} /> Aportar</Btn>
               </div>

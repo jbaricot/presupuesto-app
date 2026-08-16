@@ -3,13 +3,13 @@ import { Plus, X, Pencil, Trash2, PiggyBank } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { C } from "../theme.js";
 import { fmtCOP, fmtCompact } from "../lib/helpers.js";
-import { currentPeriod, cyclePeriodLabel, monthAbbrev } from "../lib/payCycle.js";
+import { currentPeriod, cyclePeriodLabelSmart, monthAbbrev } from "../lib/payCycle.js";
 import { Card, SectionTitle, Field, inputStyle, Btn, Empty } from "../components/ui.jsx";
 import { addInvestment, updateInvestment, deleteInvestment } from "../lib/data.js";
 
 function emptyInv(period) { return { period, date: "", reserva: "", renta_fija: "", renta_variable: "" }; }
 
-export default function InvestmentsTab({ userId, investments, setInvestments, payDay }) {
+export default function InvestmentsTab({ userId, investments, setInvestments, payDay, incomeAnchors }) {
   const [form, setForm] = useState(emptyInv(currentPeriod(payDay)));
   const [editingId, setEditingId] = useState(null);
 
@@ -52,7 +52,7 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
   return (
     <div>
       <SectionTitle eyebrow="Reserva y crecimiento" title="Inversión" />
-      <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 20, alignItems: "start" }}>
+      <div className="mlc-grid-form-s">
         <Card style={{ padding: 18 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3, marginBottom: 12 }}>
             {editingId ? "EDITAR REGISTRO" : "NUEVO REGISTRO"}
@@ -91,8 +91,8 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
 
           <Card style={{ overflow: "hidden" }}>
             {investments.length === 0 ? <Empty text="Sin registros todavía." /> : investments.slice().sort((a, b) => b.period.localeCompare(a.period)).map((i, idx) => (
-              <div key={i.id} style={{ display: "grid", gridTemplateColumns: "1fr auto auto auto auto auto", gap: 12, alignItems: "center", padding: "10px 14px", borderTop: idx === 0 ? "none" : `1px solid ${C.line}`, fontSize: 13 }}>
-                <div style={{ fontWeight: 600, color: C.ink }}>{cyclePeriodLabel(i.period, payDay)}</div>
+              <div key={i.id} className="mlc-row-inv" style={{ padding: "10px 14px", borderTop: idx === 0 ? "none" : `1px solid ${C.line}`, fontSize: 13 }}>
+                <div style={{ fontWeight: 600, color: C.ink }}>{cyclePeriodLabelSmart(i.period, payDay, incomeAnchors)}</div>
                 <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, color: C.inkSoft }}>Reserva {fmtCompact(i.reserva)}</span>
                 <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, color: C.inkSoft }}>R.Fija {fmtCompact(i.renta_fija)}</span>
                 <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, color: C.inkSoft }}>R.Var {fmtCompact(i.renta_variable)}</span>

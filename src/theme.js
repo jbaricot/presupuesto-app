@@ -18,6 +18,29 @@ export const C = {
 export const FONTS = `
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 body { margin:0; background:${C.paperAlt}; }
+
+/* ===== Layout responsive ===== */
+.mlc-grid-2      { display:grid; grid-template-columns: 1fr 1fr; gap:20px; }
+.mlc-grid-stamp  { display:grid; grid-template-columns: auto 1fr; gap:20px; }
+.mlc-grid-form-s { display:grid; grid-template-columns: 300px 1fr; gap:20px; align-items:start; }
+.mlc-grid-form-l { display:grid; grid-template-columns: 340px 1fr; gap:20px; align-items:start; }
+.mlc-grid-metrics{ display:grid; grid-template-columns: repeat(5, 1fr); gap:10px; }
+
+.mlc-row-tx  { display:grid; grid-template-columns: 1fr auto auto auto auto; gap:12px; align-items:center; }
+.mlc-row-inv { display:grid; grid-template-columns: 1fr auto auto auto auto auto; gap:12px; align-items:center; }
+.mlc-row-cat { display:grid; grid-template-columns: 1fr auto auto; gap:12px; align-items:center; }
+
+@media (max-width: 760px) {
+  .mlc-shell { padding: 14px 10px 40px !important; }
+  .mlc-card-pad { padding: 16px !important; }
+  .mlc-grid-2, .mlc-grid-stamp, .mlc-grid-form-s, .mlc-grid-form-l { grid-template-columns: 1fr !important; }
+  .mlc-grid-metrics { grid-template-columns: repeat(2, 1fr) !important; }
+  .mlc-row-tx, .mlc-row-cat { grid-template-columns: 1fr !important; row-gap: 6px !important; padding: 12px 14px !important; }
+  .mlc-row-tx > *:not(:first-child), .mlc-row-cat > *:not(:first-child) { justify-self: start !important; }
+  .mlc-row-inv { grid-template-columns: 1fr 1fr !important; row-gap: 6px !important; }
+  .mlc-hide-mobile { display:none !important; }
+  h2 { font-size: 20px !important; }
+}
 `;
 
 export const CHART_COLORS = ["#1C2A45", "#C68A3D", "#5B7F63", "#BE5B42", "#7C8FB0", "#A9865B", "#8CA98F", "#D4A373", "#4A5A78", "#B0805C"];

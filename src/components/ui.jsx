@@ -2,7 +2,7 @@ import React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { C } from "../theme.js";
 import { fmtCompact } from "../lib/helpers.js";
-import { shiftPeriod, cyclePeriodLabel } from "../lib/payCycle.js";
+import { shiftPeriod, cyclePeriodLabelSmart } from "../lib/payCycle.js";
 
 export function Card({ children, style, ...rest }) {
   return (
@@ -96,8 +96,8 @@ export function PeriodPicker({ period, setPeriod }) {
 }
 
 /** Navegador de ciclo de pago: ‹  26 Jul – 25 Ago 2026  › */
-export function PeriodNav({ period, setPeriod, payDay }) {
-  const label = cyclePeriodLabel(period, payDay);
+export function PeriodNav({ period, setPeriod, payDay, incomeAnchors = [] }) {
+  const label = cyclePeriodLabelSmart(period, payDay, incomeAnchors);
   const btnStyle = {
     background: C.white, border: `1px solid ${C.line}`, borderRadius: 6, width: 28, height: 28,
     display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: C.inkSoft,

@@ -9,7 +9,7 @@ import { fmtCOP, fmtCompact } from "../lib/helpers.js";
 import { monthAbbrev } from "../lib/payCycle.js";
 import { Card, SectionTitle, PeriodNav, ProgressBar, Empty, LedgerStamp } from "../components/ui.jsx";
 
-export default function Dashboard({ transactions, goals, contributions, investments, budget, period, setPeriod, payDay }) {
+export default function Dashboard({ transactions, goals, contributions, investments, budget, period, setPeriod, payDay, incomeAnchors }) {
   const periodTx = useMemo(() => transactions.filter((t) => t.period === period), [transactions, period]);
 
   const totals = useMemo(() => {
@@ -61,13 +61,13 @@ export default function Dashboard({ transactions, goals, contributions, investme
 
   return (
     <div>
-      <SectionTitle eyebrow="Este período" title="Panorama" right={<PeriodNav period={period} setPeriod={setPeriod} payDay={payDay} />} />
+      <SectionTitle eyebrow="Este período" title="Panorama" right={<PeriodNav period={period} setPeriod={setPeriod} payDay={payDay} incomeAnchors={incomeAnchors} />} />
 
-      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 20, marginBottom: 20 }}>
+      <div className="mlc-grid-stamp" style={{ marginBottom: 20 }}>
         <Card style={{ padding: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <LedgerStamp value={totals.saldo} />
         </Card>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div className="mlc-grid-2" style={{ gap: 14 }}>
           <Card style={{ padding: "16px 18px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, color: C.sage, fontSize: 12, fontWeight: 700, letterSpacing: 0.3 }}>
               <ArrowUpRight size={15} /> INGRESOS
@@ -105,7 +105,7 @@ export default function Dashboard({ transactions, goals, contributions, investme
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
+      <div className="mlc-grid-2" style={{ marginBottom: 20 }}>
         <Card style={{ padding: 18 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3, marginBottom: 10 }}>GASTOS POR CATEGORÍA</div>
           {categoryData.length === 0 ? <Empty text="Sin gastos registrados este período." /> : (
@@ -138,7 +138,7 @@ export default function Dashboard({ transactions, goals, contributions, investme
         </Card>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+      <div className="mlc-grid-2">
         <Card style={{ padding: 18 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3, marginBottom: 10 }}>METAS EN CURSO</div>
           {goalProgress.length === 0 ? <Empty text="No has creado metas todavía." /> : (

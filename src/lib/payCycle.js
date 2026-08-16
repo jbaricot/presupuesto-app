@@ -57,3 +57,57 @@ export function monthAbbrev(period) {
   const [y, m] = period.split("-");
   return `${MONTHS_ES[parseInt(m, 10) - 1].slice(0, 3)} ${y.slice(2, 4)}`;
 }
+
+/**
+ * ===== Ciclos dinámicos basados en ingresos reales =====
+ * Si el salario no siempre cae el mismo día (fines de semana, festivos, adelantos),
+ * en vez de forzar un día fijo cada mes, usamos las fechas reales de tus transacciones
+ * tipo "ingreso" como anclas del ciclo. El "día de pago" configurado en Presupuesto
+ * solo se usa como respaldo cuando todavía no hay un ingreso registrado para ese ciclo
+ * (por ejemplo, el mes que aún no te han pagado).
+ */
+
+export function getIncomeAnchors(transactions) {
+  const dates = (transactions || [])
+    .filter((t) => t.type === "ingreso" && t.date)
+    .map((t) => t.date);
+  return Array.from(new Set(dates)).sort();
+}
+
+export function periodForDateSmart(dateStr, payDay, anchors) {
+  const d = dateStr || new Date().toISOString().slice(0, 10);
+  let chosen = null;
+  for (const a of anchors) {
+    if (a <= d) chosen = a;
+    else break;
+  }
+  if (chosen) {
+    const [y, m] = chosen.split("-");
+    return `${y}-${m}`;
+  }
+  return periodForDate(dateStr, payDay); // sin ancla real todavía: usar el día nominal
+}
+
+export function cycleRangeSmart(period, payDay, anchors) {
+  const idx = anchors.findIndex((a) => a.slice(0, 7) === period);
+  if (idx === -1) return cycleRange(period, payDay); // sin ingreso registrado ese ciclo: nominal
+  const start = new Date(anchors[idx] + "T00:00:00");
+  let end;
+  if (idx + 1 < anchors.length) {
+    end = new Date(anchors[idx + 1] + "T00:00:00");
+    end.setDate(end.getDate() - 1);
+  } else {
+    end = cycleRange(period, payDay).end; // aún no llega el siguiente ingreso: fecha de cierre estimada
+  }
+  return { start, end };
+}
+
+export function cyclePeriodLabelSmart(period, payDay, anchors) {
+  const pd = Math.min(Math.max(Number(payDay) || 1, 1), 28);
+  if (pd <= 1) {
+    const [y, m] = period.split("-");
+    return `${MONTHS_ES[parseInt(m, 10) - 1]} ${y}`;
+  }
+  const { start, end } = cycleRangeSmart(period, payDay, anchors);
+  return `${shortDate(start)} – ${shortDate(end)} ${end.getFullYear()}`;
+}

@@ -1,26 +1,47 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Plus, X, Pencil, Trash2 } from "lucide-react";
+import { Plus, X, Pencil, Trash2, ArrowUpDown } from "lucide-react";
 import { C, TX_TYPES, TX_TYPE_LABEL, PAYMENT_METHODS } from "../theme.js";
 import { fmtCOP, fmtCompact } from "../lib/helpers.js";
-import { periodForDate, cyclePeriodLabel } from "../lib/payCycle.js";
+import { periodForDateSmart, cyclePeriodLabelSmart } from "../lib/payCycle.js";
 import { Card, SectionTitle, PeriodNav, Field, inputStyle, Btn, Empty } from "../components/ui.jsx";
 import { addTransaction, updateTransaction, deleteTransaction } from "../lib/data.js";
+
+const SORT_OPTIONS = [
+  { id: "date_desc", label: "Fecha (más reciente)" },
+  { id: "date_asc", label: "Fecha (más antigua)" },
+  { id: "value_desc", label: "Valor (mayor primero)" },
+  { id: "value_asc", label: "Valor (menor primero)" },
+  { id: "name_asc", label: "Nombre (A–Z)" },
+];
+
+function sortTx(list, sortBy) {
+  const sorted = list.slice();
+  switch (sortBy) {
+    case "date_asc": return sorted.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    case "value_desc": return sorted.sort((a, b) => Number(b.value || 0) - Number(a.value || 0));
+    case "value_asc": return sorted.sort((a, b) => Number(a.value || 0) - Number(b.value || 0));
+    case "name_asc": return sorted.sort((a, b) => a.name.localeCompare(b.name, "es"));
+    case "date_desc":
+    default: return sorted.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  }
+}
 
 function emptyTx(period) {
   return { period, date: "", name: "", type: "variable", category: "", payment_method: "Débito", value: "", paid: false };
 }
 
-export default function TransactionsTab({ userId, transactions, setTransactions, categories, period, setPeriod, payDay }) {
+export default function TransactionsTab({ userId, transactions, setTransactions, categories, period, setPeriod, payDay, incomeAnchors }) {
   const [form, setForm] = useState(emptyTx(period));
   const [editingId, setEditingId] = useState(null);
   const [filterType, setFilterType] = useState("todos");
+  const [sortBy, setSortBy] = useState("date_desc");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => { setForm(emptyTx(period)); setEditingId(null); }, [period]);
 
   const periodTx = useMemo(
-    () => transactions.filter((t) => t.period === period && (filterType === "todos" || t.type === filterType)),
-    [transactions, period, filterType]
+    () => sortTx(transactions.filter((t) => t.period === period && (filterType === "todos" || t.type === filterType)), sortBy),
+    [transactions, period, filterType, sortBy]
   );
 
   const totals = useMemo(() => {
@@ -35,7 +56,7 @@ export default function TransactionsTab({ userId, transactions, setTransactions,
     try {
       // Si hay fecha, el ciclo de pago al que pertenece se calcula automáticamente;
       // si no hay fecha, se usa el ciclo que estás viendo en pantalla.
-      const derivedPeriod = form.date ? periodForDate(form.date, payDay) : period;
+      const derivedPeriod = form.date ? periodForDateSmart(form.date, payDay, incomeAnchors) : period;
       const payload = { ...form, period: derivedPeriod, value: Number(form.value), date: form.date || null };
       if (editingId) {
         const updated = await updateTransaction(editingId, payload);
@@ -62,9 +83,9 @@ export default function TransactionsTab({ userId, transactions, setTransactions,
 
   return (
     <div>
-      <SectionTitle eyebrow="Registro" title="Transacciones" right={<PeriodNav period={period} setPeriod={setPeriod} payDay={payDay} />} />
+      <SectionTitle eyebrow="Registro" title="Transacciones" right={<PeriodNav period={period} setPeriod={setPeriod} payDay={payDay} incomeAnchors={incomeAnchors} />} />
 
-      <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 20, alignItems: "start" }}>
+      <div className="mlc-grid-form-l">
         <Card style={{ padding: 18 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3, marginBottom: 12 }}>
             {editingId ? "EDITAR MOVIMIENTO" : "NUEVO MOVIMIENTO"}
@@ -96,7 +117,7 @@ export default function TransactionsTab({ userId, transactions, setTransactions,
             </Field>
             {form.date && (
               <div style={{ fontSize: 11.5, color: C.inkFaint, marginTop: -4 }}>
-                Se registrará en el ciclo: <strong style={{ color: C.inkSoft }}>{cyclePeriodLabel(periodForDate(form.date, payDay), payDay)}</strong>
+                Se registrará en el ciclo: <strong style={{ color: C.inkSoft }}>{cyclePeriodLabelSmart(periodForDateSmart(form.date, payDay, incomeAnchors), payDay, incomeAnchors)}</strong>
               </div>
             )}
             <Field label="Valor (COP)">
@@ -115,7 +136,7 @@ export default function TransactionsTab({ userId, transactions, setTransactions,
         </Card>
 
         <div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 14 }}>
+          <div className="mlc-grid-metrics" style={{ marginBottom: 14 }}>
             {TX_TYPES.map((t) => (
               <Card key={t.id} style={{ padding: "10px 12px" }}>
                 <div style={{ fontSize: 10.5, color: C.inkSoft, fontWeight: 700, letterSpacing: 0.3 }}>{t.label.toUpperCase()}</div>
@@ -124,20 +145,24 @@ export default function TransactionsTab({ userId, transactions, setTransactions,
             ))}
           </div>
 
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3 }}>{cyclePeriodLabel(period, payDay).toUpperCase()}</div>
-            <select style={{ ...inputStyle, fontSize: 12.5, padding: "5px 8px" }} value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-              <option value="todos">Todos los tipos</option>
-              {TX_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-            </select>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3 }}>{cyclePeriodLabelSmart(period, payDay, incomeAnchors).toUpperCase()}</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <select style={{ ...inputStyle, fontSize: 12.5, padding: "5px 8px" }} value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+                <option value="todos">Todos los tipos</option>
+                {TX_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+              </select>
+              <select style={{ ...inputStyle, fontSize: 12.5, padding: "5px 8px" }} value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                {SORT_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+              </select>
+            </div>
           </div>
 
           <Card style={{ overflow: "hidden" }}>
             {periodTx.length === 0 ? <Empty text="No hay movimientos para este filtro." /> : (
               <div>
-                {periodTx.slice().sort((a, b) => (b.date || "").localeCompare(a.date || "")).map((t, i) => (
-                  <div key={t.id} style={{
-                    display: "grid", gridTemplateColumns: "1fr auto auto auto auto", gap: 12, alignItems: "center",
+                {periodTx.map((t, i) => (
+                  <div key={t.id} className="mlc-row-tx" style={{
                     padding: "10px 14px", borderTop: i === 0 ? "none" : `1px solid ${C.line}`, fontSize: 13,
                   }}>
                     <div>

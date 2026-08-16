@@ -46,6 +46,8 @@ export default function BudgetTab({ userId, budget, setBudget }) {
       <Card style={{ padding: 22, maxWidth: 480, marginBottom: 20 }}>
         <div style={{ fontSize: 12, color: C.inkFaint, marginBottom: 16 }}>
           El día en que recibes tu ingreso principal. Con esto, tus períodos dejan de ser meses calendario y pasan a ser ciclos de pago — por ejemplo, si te pagan el 26, cada ciclo va del 26 de un mes al 25 del siguiente, agrupando así los últimos días del mes con el mes que ese pago financia.
+          <br /><br />
+          <strong style={{ color: C.inkSoft }}>Este día es solo de referencia.</strong> Si un mes te pagan otro día (por un fin de semana, festivo o adelanto), la app ajusta el ciclo solo con que registres el ingreso con su fecha real — no necesitas cambiar esta configuración cada vez.
         </div>
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <Field label="Día de pago del mes (1–28)">

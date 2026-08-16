@@ -32,7 +32,7 @@ export default function CategoriesTab({ userId, categories, setCategories }) {
   return (
     <div>
       <SectionTitle eyebrow="Clasificación" title="Categorías" />
-      <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 20, alignItems: "start" }}>
+      <div className="mlc-grid-form-s">
         <Card style={{ padding: 18 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3, marginBottom: 12 }}>
             {editingId ? "EDITAR CATEGORÍA" : "NUEVA CATEGORÍA"}
@@ -49,7 +49,7 @@ export default function CategoriesTab({ userId, categories, setCategories }) {
 
         <Card style={{ overflow: "hidden" }}>
           {categories.map((c, idx) => (
-            <div key={c.id} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12, alignItems: "center", padding: "12px 16px", borderTop: idx === 0 ? "none" : `1px solid ${C.line}` }}>
+            <div key={c.id} className="mlc-row-cat" style={{ padding: "12px 16px", borderTop: idx === 0 ? "none" : `1px solid ${C.line}` }}>
               <div>
                 <div style={{ fontWeight: 600, fontSize: 13.5, color: C.ink }}>{c.name}</div>
                 <div style={{ fontSize: 12, color: C.inkFaint, marginTop: 2 }}>{c.description}</div>

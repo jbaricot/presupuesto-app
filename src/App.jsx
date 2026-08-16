@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { LayoutDashboard, Receipt, Target, TrendingUp, Tags, SlidersHorizontal, Wallet, LogOut, Loader2 } from "lucide-react";
 import { supabase } from "./supabaseClient.js";
 import { C, FONTS, DEFAULT_CATEGORIES, DEFAULT_BUDGET } from "./theme.js";
-import { currentPeriod } from "./lib/payCycle.js";
+import { currentPeriod, getIncomeAnchors } from "./lib/payCycle.js";
 import Login from "./components/Login.jsx";
 import Dashboard from "./tabs/Dashboard.jsx";
 import TransactionsTab from "./tabs/Transactions.jsx";
@@ -72,6 +72,7 @@ export default function App() {
   }, [userId]);
 
   const payDay = budget.pay_day || 1;
+  const incomeAnchors = useMemo(() => getIncomeAnchors(transactions), [transactions]);
 
   const signOut = () => supabase.auth.signOut();
 
@@ -102,10 +103,10 @@ export default function App() {
   return (
     <div style={{ minHeight: "100vh", background: C.paperAlt, fontFamily: "'Inter',sans-serif" }}>
       <style>{FONTS}</style>
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "26px 20px 60px" }}>
+      <div className="mlc-shell" style={{ maxWidth: 1100, margin: "0 auto", padding: "26px 20px 60px" }}>
         <div style={{ background: C.paper, borderRadius: 12, border: `1px solid ${C.line}`, overflow: "hidden" }}>
           {/* Header */}
-          <div style={{ padding: "22px 26px 0 26px" }}>
+          <div className="mlc-card-pad" style={{ padding: "22px 26px 0 26px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 34, height: 34, borderRadius: 8, background: C.ink, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -140,18 +141,18 @@ export default function App() {
             </div>
           </div>
 
-          <div style={{ padding: 26 }}>
+          <div className="mlc-card-pad" style={{ padding: 26 }}>
             {tab === "dashboard" && (
-              <Dashboard transactions={transactions} goals={goals} contributions={contributions} investments={investments} budget={budget} period={period} setPeriod={setPeriod} payDay={payDay} />
+              <Dashboard transactions={transactions} goals={goals} contributions={contributions} investments={investments} budget={budget} period={period} setPeriod={setPeriod} payDay={payDay} incomeAnchors={incomeAnchors} />
             )}
             {tab === "transacciones" && (
-              <TransactionsTab userId={userId} transactions={transactions} setTransactions={setTransactions} categories={categories} period={period} setPeriod={setPeriod} payDay={payDay} />
+              <TransactionsTab userId={userId} transactions={transactions} setTransactions={setTransactions} categories={categories} period={period} setPeriod={setPeriod} payDay={payDay} incomeAnchors={incomeAnchors} />
             )}
             {tab === "metas" && (
-              <GoalsTab userId={userId} goals={goals} setGoals={setGoals} contributions={contributions} setContributions={setContributions} period={period} payDay={payDay} />
+              <GoalsTab userId={userId} goals={goals} setGoals={setGoals} contributions={contributions} setContributions={setContributions} period={period} payDay={payDay} incomeAnchors={incomeAnchors} />
             )}
             {tab === "inversiones" && (
-              <InvestmentsTab userId={userId} investments={investments} setInvestments={setInvestments} payDay={payDay} />
+              <InvestmentsTab userId={userId} investments={investments} setInvestments={setInvestments} payDay={payDay} incomeAnchors={incomeAnchors} />
             )}
             {tab === "categorias" && (
               <CategoriesTab userId={userId} categories={categories} setCategories={setCategories} />
