@@ -10,12 +10,12 @@ import { addGoal, updateGoal, deleteGoal, addContribution, updateContribution, d
 export default function GoalsTab({ userId, goals, setGoals, contributions, setContributions, period, setPeriod, payDay, incomeAnchors, transactions, setTransactions }) {
   const [form, setForm] = useState({ name: "", total: "", dueDate: "", parentGoalId: "" });
   const [editingGoalId, setEditingGoalId] = useState(null);
-  
+
   const [contribValues, setContribValues] = useState({});
   const [withdrawValues, setWithdrawValues] = useState({});
   const [syncToTxGoals, setSyncToTxGoals] = useState({});
   const [collapsedSubs, setCollapsedSubs] = useState({});
-  
+
   const [saving, setSaving] = useState(false);
   const [expandedGoalId, setExpandedGoalId] = useState(null);
   const [editingContribId, setEditingContribId] = useState(null);
@@ -37,7 +37,7 @@ export default function GoalsTab({ userId, goals, setGoals, contributions, setCo
       });
 
       const hasSubGoals = subGoals.length > 0;
-      const totalSaved = hasSubGoals 
+      const totalSaved = hasSubGoals
         ? childrenWithProgress.reduce((a, s) => a + s.saved, 0)
         : contributions.filter(c => c.goal_id === parent.id).reduce((a, c) => a + Number(c.value || 0), 0);
 
@@ -61,20 +61,24 @@ export default function GoalsTab({ userId, goals, setGoals, contributions, setCo
   }, [goals, contributions, parentGoals]);
 
   const toggleSubGoalsMenu = (parentId) => {
-    setCollapsedSubs(prev => ({ ...prev, [parentId]: !prev[parentId] }));
+    setCollapsedSubs(prev => {
+      // Si no existe un valor previo, se asume que por defecto estaba en true (oculto)
+      const current = prev[parentId] ?? true;
+      return { ...prev, [parentId]: !current };
+    });
   };
 
   const submitGoal = async (e) => {
     e.preventDefault();
     if (!form.name || !form.total) return;
-    
+
     setSaving(true);
     try {
       const payload = {
-        name: form.name, 
-        total: Number(form.total), 
+        name: form.name,
+        total: Number(form.total),
         dueDate: form.dueDate || null,
-        parentGoalId: form.parentGoalId || null 
+        parentGoalId: form.parentGoalId || null
       };
 
       if (editingGoalId) {
@@ -123,7 +127,7 @@ export default function GoalsTab({ userId, goals, setGoals, contributions, setCo
   const submitContribution = async (goalId, goalName) => {
     const val = Number(contribValues[goalId]);
     if (!val) return;
-    
+
     setSaving(true);
     try {
       let transactionId = null;
@@ -164,7 +168,7 @@ export default function GoalsTab({ userId, goals, setGoals, contributions, setCo
   const submitWithdrawal = async (goalId) => {
     const val = Number(withdrawValues[goalId]);
     if (!val) return;
-    
+
     setSaving(true);
     try {
       const created = await addContribution(userId, { goalId, period, value: -val, transactionId: null });
@@ -190,7 +194,7 @@ export default function GoalsTab({ userId, goals, setGoals, contributions, setCo
     setSaving(true);
     try {
       const targetContrib = contributions.find(c => c.id === contribId);
-      
+
       // 1. Actualizar el aporte en base de datos
       const updated = await updateContribution(contribId, { value: val });
       setContributions(contributions.map(c => c.id === contribId ? updated : c));
@@ -231,13 +235,13 @@ export default function GoalsTab({ userId, goals, setGoals, contributions, setCo
 
   return (
     <div>
-      <SectionTitle 
-        eyebrow="A futuro" 
-        title="Metas y Sub-metas" 
-        right={<PeriodNav period={period} setPeriod={setPeriod} payDay={payDay} incomeAnchors={incomeAnchors} />} 
+      <SectionTitle
+        eyebrow="A futuro"
+        title="Metas y Sub-metas"
+        right={<PeriodNav period={period} setPeriod={setPeriod} payDay={payDay} incomeAnchors={incomeAnchors} />}
       />
       <div className="mlc-grid-form-s">
-        
+
         {/* Formulario */}
         <Card style={{ padding: 18 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3, marginBottom: 12 }}>
@@ -245,10 +249,10 @@ export default function GoalsTab({ userId, goals, setGoals, contributions, setCo
           </div>
           <form onSubmit={submitGoal} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <Field label="¿Es una Sub-meta? (Opcional)">
-              <select 
-                style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }} 
-                value={form.parentGoalId} 
-                onChange={(e) => setForm({ ...form, parentGoalId: e.target.value })} 
+              <select
+                style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
+                value={form.parentGoalId}
+                onChange={(e) => setForm({ ...form, parentGoalId: e.target.value })}
                 disabled={saving}
               >
                 <option value="">No (Es una Meta Principal / Macro-meta)</option>
@@ -282,14 +286,15 @@ export default function GoalsTab({ userId, goals, setGoals, contributions, setCo
             </div>
           </form>
         </Card>
-        
+
         {/* Listado */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {goalsWithProgress.length === 0 && <Card style={{ padding: 18 }}><Empty text="Aún no tienes metas creadas." /></Card>}
-          
+
           {goalsWithProgress.map((parent) => {
             const isParentChecked = syncToTxGoals[parent.id] !== false;
-            const isSubCollapsed = !!collapsedSubs[parent.id];
+            // Dentro del .map de metas principales:
+            const isSubCollapsed = collapsedSubs[parent.id] ?? true;
 
             return (
               <Card key={parent.id} style={{ padding: 18 }}>
@@ -308,7 +313,7 @@ export default function GoalsTab({ userId, goals, setGoals, contributions, setCo
                     <button onClick={() => removeGoal(parent.id)} disabled={saving} style={{ background: "none", border: "none", cursor: "pointer", color: C.coral }}><Trash2 size={15} /></button>
                   </div>
                 </div>
-                
+
                 <div style={{ marginTop: 10 }}><ProgressBar pct={parent.pct} color={C.gold} /></div>
 
                 {/* Si no tiene sub-metas */}
@@ -339,8 +344,8 @@ export default function GoalsTab({ userId, goals, setGoals, contributions, setCo
                       <div style={{ fontSize: 11, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.5, display: "flex", alignItems: "center", gap: 4 }}>
                         <FolderTree size={13} /> SUB-METAS ({parent.subGoals.length})
                       </div>
-                      <button 
-                        onClick={() => toggleSubGoalsMenu(parent.id)} 
+                      <button
+                        onClick={() => toggleSubGoalsMenu(parent.id)}
                         style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: C.gold, fontWeight: 600, display: "flex", alignItems: "center", gap: 3 }}
                       >
                         {isSubCollapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
@@ -366,7 +371,7 @@ export default function GoalsTab({ userId, goals, setGoals, contributions, setCo
                                   <button onClick={() => removeGoal(sub.id)} disabled={saving} style={{ background: "none", border: "none", cursor: "pointer", color: C.coral }}><Trash2 size={13} /></button>
                                 </div>
                               </div>
-                              
+
                               <div style={{ marginTop: 6 }}><ProgressBar pct={sub.pct} color={C.sage} /></div>
 
                               <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>

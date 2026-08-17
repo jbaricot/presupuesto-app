@@ -1,12 +1,11 @@
 import React, { useState, useMemo } from "react";
 import { Plus, X, Pencil, Trash2, PiggyBank, Building2 } from "lucide-react";
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
+import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { C } from "../theme.js";
 import { fmtCOP, fmtCompact } from "../lib/helpers.js";
 import { currentPeriod, cyclePeriodLabelSmart, monthAbbrev, periodForTransaction } from "../lib/payCycle.js";
-// Importamos PeriodNav
 import { Card, SectionTitle, PeriodNav, Field, inputStyle, Btn, Empty } from "../components/ui.jsx";
-import { addInvestment, updateInvestment, deleteInvestment, addTransaction } from "../lib/data.js";
+import { addInvestment, updateInvestment, deleteInvestment, addTransaction, deleteTransaction } from "../lib/data.js";
 
 function emptyInv(period) { 
   return { 
@@ -32,19 +31,76 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
     return Array.from(set);
   }, [investments]);
 
+  // Gráfico de evolución acumulada filtrado y agrupado correctamente por mes
   const chartData = useMemo(() => {
-    let acc = 0;
     const filtered = selectedPlatformFilter === "todos" 
       ? investments 
       : investments.filter(i => (i.platform || "General") === selectedPlatformFilter);
 
-    return filtered.slice().sort((a, b) => a.period.localeCompare(b.period)).map((i) => {
+    // Agrupar neto por período para evitar duplicados en el mismo mes
+    const periodMap = {};
+    filtered.forEach(i => {
+      const p = i.period;
+      if (!periodMap[p]) periodMap[p] = 0;
       const baseAporte = Number(i.aporte || i.reserva || 0);
       const netPeriod = baseAporte - Number(i.retiros || 0) + Number(i.rendimientos || 0) - Number(i.costos || 0);
-      acc += netPeriod;
-      return { label: monthAbbrev(i.period), acumulado: acc };
+      periodMap[p] += netPeriod;
     });
+
+    let acc = 0;
+    return Object.entries(periodMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([p, netVal]) => {
+        acc += netVal;
+        return { label: monthAbbrev(p), acumulado: acc };
+      });
   }, [investments, selectedPlatformFilter]);
+
+  // Patrimonio total adaptado al filtro de plataforma seleccionado
+  const totalAll = useMemo(() => {
+    const filtered = selectedPlatformFilter === "todos" 
+      ? investments 
+      : investments.filter(i => (i.platform || "General") === selectedPlatformFilter);
+
+    return filtered.reduce((a, i) => {
+      const baseAporte = Number(i.aporte || i.reserva || 0);
+      const net = baseAporte - Number(i.retiros || 0) + Number(i.rendimientos || 0) - Number(i.costos || 0);
+      return a + net;
+    }, 0);
+  }, [investments, selectedPlatformFilter]);
+
+  const timelineCostsReturns = useMemo(() => {
+    const filtered = selectedPlatformFilter === "todos" 
+      ? investments 
+      : investments.filter(i => (i.platform || "General") === selectedPlatformFilter);
+    
+    const map = {};
+    filtered.forEach(i => {
+      if (!map[i.period]) map[i.period] = { period: i.period, label: monthAbbrev(i.period), rendimientos: 0, costos: 0 };
+      map[i.period].rendimientos += Number(i.rendimientos || 0);
+      map[i.period].costos += Number(i.costos || 0);
+    });
+    return Object.values(map).sort((a, b) => a.period.localeCompare(b.period));
+  }, [investments, selectedPlatformFilter]);
+
+  const platformCostsReturns = useMemo(() => {
+    const map = {};
+    investments.forEach(i => {
+      const plat = i.platform || "General";
+      if (!map[plat]) map[plat] = { platform: plat, rendimientos: 0, costos: 0 };
+      map[plat].rendimientos += Number(i.rendimientos || 0);
+      map[plat].costos += Number(i.costos || 0);
+    });
+    return Object.values(map);
+  }, [investments]);
+
+  const filteredInvestments = useMemo(() => {
+    return investments.filter(i => {
+      const matchPeriod = i.period === period;
+      const matchPlatform = selectedPlatformFilter === "todos" || (i.platform || "General") === selectedPlatformFilter;
+      return matchPeriod && matchPlatform;
+    });
+  }, [investments, period, selectedPlatformFilter]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -53,6 +109,29 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
     setSaving(true);
     try {
       const aporteVal = Number(form.aporte || 0);
+      let transactionId = null;
+
+      if (form.syncToTx && aporteVal > 0 && !editingId) {
+        const derivedPeriod = form.date 
+          ? periodForTransaction("provision", form.date, payDay, incomeAnchors) 
+          : form.period;
+
+        const txPayload = {
+          user_id: userId,
+          name: `Ahorro / Inv: ${form.platform.trim()}`,
+          type: "provision",
+          category: "Ahorro",
+          payment_method: "Transferencia",
+          value: aporteVal,
+          date: form.date || null,
+          period: derivedPeriod,
+          paid: true
+        };
+
+        const newTx = await addTransaction(userId, txPayload);
+        transactionId = newTx.id;
+        setTransactions([newTx, ...transactions]);
+      }
 
       const payload = {
         period: form.period, 
@@ -64,7 +143,8 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
         costos: Number(form.costos || 0),
         reserva: aporteVal, 
         renta_fija: 0, 
-        renta_variable: 0
+        renta_variable: 0,
+        ...(transactionId && { transaction_id: transactionId })
       };
       
       if (editingId) {
@@ -73,27 +153,6 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
       } else {
         const created = await addInvestment(userId, payload);
         setInvestments([...investments, created]);
-
-        if (form.syncToTx && aporteVal > 0) {
-          const derivedPeriod = form.date 
-            ? periodForTransaction("provision", form.date, payDay, incomeAnchors) 
-            : form.period;
-
-          const txPayload = {
-            user_id: userId,
-            name: `Ahorro / Inv: ${form.platform.trim()}`,
-            type: "provision",
-            category: "Ahorro",
-            payment_method: "Transferencia",
-            value: aporteVal,
-            date: form.date || null,
-            period: derivedPeriod,
-            paid: true
-          };
-
-          const newTx = await addTransaction(userId, txPayload);
-          setTransactions([newTx, ...transactions]);
-        }
       }
 
       setForm(emptyInv(period));
@@ -120,24 +179,21 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
   };
 
   const remove = async (id) => {
-    if (!confirm("¿Eliminar este registro?")) return;
+    if (!confirm("¿Eliminar este registro y su transacción asociada?")) return;
     try {
+      const targetInvestment = investments.find((i) => i.id === id);
+
       await deleteInvestment(id);
       setInvestments(investments.filter((i) => i.id !== id));
+
+      if (targetInvestment && targetInvestment.transaction_id && setTransactions) {
+        await deleteTransaction(targetInvestment.transaction_id);
+        setTransactions(transactions.filter((t) => t.id !== targetInvestment.transaction_id));
+      }
     } catch (error) {
       alert("Error al eliminar: " + error.message);
     }
   };
-
-  const totalAll = investments.reduce((a, i) => {
-    const baseAporte = Number(i.aporte || i.reserva || 0);
-    const net = baseAporte - Number(i.retiros || 0) + Number(i.rendimientos || 0) - Number(i.costos || 0);
-    return a + net;
-  }, 0);
-
-  const filteredInvestments = selectedPlatformFilter === "todos" 
-    ? investments 
-    : investments.filter(i => (i.platform || "General") === selectedPlatformFilter);
 
   return (
     <div>
@@ -212,8 +268,10 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
         </Card>
 
         {/* Panel derecho */}
-        <div>
-          <Card style={{ padding: 18, marginBottom: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          
+          {/* Tarjeta de Patrimonio y Gráfico de Acumulado */}
+          <Card style={{ padding: 18 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, color: C.inkSoft, fontSize: 12, fontWeight: 700, letterSpacing: 0.3 }}>
                 <PiggyBank size={15} /> PATRIMONIO EN INVERSIONES
@@ -248,9 +306,56 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
             )}
           </Card>
 
-          {/* Listado de Registros */}
+          {/* Opción 1: Gráfico de Rendimientos vs Costos (Por Período) */}
+          <Card style={{ padding: 18 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3, marginBottom: 12 }}>
+              RENDIMIENTOS VS COSTOS (POR PERÍODO)
+            </div>
+            {timelineCostsReturns.length === 0 ? (
+              <Empty text="Sin datos suficientes." />
+            ) : (
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={timelineCostsReturns}>
+                  <CartesianGrid stroke={C.line} strokeDasharray="3 3" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11, fontFamily: "Inter", fill: C.inkSoft }} />
+                  <YAxis tick={{ fontSize: 10, fontFamily: "Inter", fill: C.inkSoft }} tickFormatter={fmtCompact} />
+                  <Tooltip formatter={(v) => fmtCOP(v)} contentStyle={{ fontFamily: "Inter", fontSize: 12, borderRadius: 8 }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="rendimientos" fill={C.sage} name="Rendimientos" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="costos" fill={C.coral} name="Costos" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+
+          {/* Opción 2: Gráfico de Rendimientos vs Costos (Desglose por Plataforma) */}
+          <Card style={{ padding: 18 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3, marginBottom: 12 }}>
+              RENDIMIENTOS VS COSTOS (POR PLATAFORMA)
+            </div>
+            {platformCostsReturns.length === 0 ? (
+              <Empty text="Sin datos suficientes." />
+            ) : (
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={platformCostsReturns}>
+                  <CartesianGrid stroke={C.line} strokeDasharray="3 3" />
+                  <XAxis dataKey="platform" tick={{ fontSize: 11, fontFamily: "Inter", fill: C.inkSoft }} />
+                  <YAxis tick={{ fontSize: 10, fontFamily: "Inter", fill: C.inkSoft }} tickFormatter={fmtCompact} />
+                  <Tooltip formatter={(v) => fmtCOP(v)} contentStyle={{ fontFamily: "Inter", fontSize: 12, borderRadius: 8 }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="rendimientos" fill={C.sage} name="Rendimientos" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="costos" fill={C.coral} name="Costos" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+
+          {/* Listado de Registros filtrado por período */}
           <Card style={{ overflow: "hidden" }}>
-            {filteredInvestments.length === 0 ? <Empty text="Sin registros para esta plataforma todavía." /> : (
+            <div style={{ padding: "12px 14px", fontSize: 12, fontWeight: 700, color: C.inkSoft, borderBottom: `1px solid ${C.line}` }}>
+              REGISTROS DEL PERÍODO FILTRADO
+            </div>
+            {filteredInvestments.length === 0 ? <Empty text="Sin registros para este período." /> : (
               filteredInvestments.slice().sort((a, b) => b.period.localeCompare(a.period)).map((i, idx) => {
                 const baseAporte = Number(i.aporte || i.reserva || 0);
                 const netRow = baseAporte - Number(i.retiros || 0) + Number(i.rendimientos || 0) - Number(i.costos || 0);

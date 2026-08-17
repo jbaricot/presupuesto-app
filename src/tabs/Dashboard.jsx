@@ -45,9 +45,27 @@ export default function Dashboard({ transactions, goals, contributions, investme
   }, [transactions]);
 
   const goalProgress = useMemo(() => {
-    return goals.map((g) => {
-      const saved = contributions.filter((c) => c.goal_id === g.id).reduce((a, c) => a + Number(c.value || 0), 0);
-      return { ...g, saved, pct: g.target_total > 0 ? (saved / g.target_total) * 100 : 0 };
+    const parentGoals = goals.filter(g => !g.parent_goal_id);
+    return parentGoals.map((parent) => {
+      const subGoals = goals.filter(g => g.parent_goal_id === parent.id);
+      const hasSubGoals = subGoals.length > 0;
+
+      const childrenWithProgress = subGoals.map(sub => {
+        const saved = contributions.filter(c => c.goal_id === sub.id).reduce((a, c) => a + Number(c.value || 0), 0);
+        return { saved, target_total: Number(sub.target_total || 0) };
+      });
+
+      const totalSaved = hasSubGoals 
+        ? childrenWithProgress.reduce((a, s) => a + s.saved, 0)
+        : contributions.filter((c) => c.goal_id === parent.id).reduce((a, c) => a + Number(c.value || 0), 0);
+
+      const totalTarget = hasSubGoals
+        ? childrenWithProgress.reduce((a, s) => a + s.target_total, 0)
+        : Number(parent.target_total || 0);
+
+      const pct = totalTarget > 0 ? (totalSaved / totalTarget) * 100 : 0;
+
+      return { ...parent, saved: totalSaved, target_total: totalTarget, pct };
     });
   }, [goals, contributions]);
 
