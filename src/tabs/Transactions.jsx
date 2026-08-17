@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Plus, X, Pencil, Trash2 } from "lucide-react";
+import { Plus, X, Pencil, Trash2, Upload, Download } from "lucide-react";
 import { C, TX_TYPES, TX_TYPE_LABEL, PAYMENT_METHODS } from "../theme.js";
 import { fmtCOP, fmtCompact } from "../lib/helpers.js";
 import { periodForTransaction, cyclePeriodLabelSmart } from "../lib/payCycle.js";
 import { Card, SectionTitle, PeriodNav, Field, inputStyle, Btn, Empty } from "../components/ui.jsx";
 import { addTransaction, updateTransaction, deleteTransaction, addContribution, addInvestment } from "../lib/data.js";
-import { Upload } from "lucide-react";
 import ImportModal from "../components/ImportModal.jsx";
 
 const SORT_OPTIONS = [
@@ -39,14 +38,13 @@ export default function TransactionsTab({
   const [form, setForm] = useState(emptyTx(period));
   const [editingId, setEditingId] = useState(null);
   const [filterType, setFilterType] = useState("todos");
-  const [filterCategory, setFilterCategory] = useState("todos"); // <-- NUEVO: Estado para filtrar por categoría
+  const [filterCategory, setFilterCategory] = useState("todos");
   const [sortBy, setSortBy] = useState("date_desc");
   const [saving, setSaving] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   useEffect(() => { setForm(emptyTx(period)); setEditingId(null); }, [period]);
 
-  // Lógica de filtrado actualizada (Periodo + Tipo + Categoría) y Ordenamiento
   const periodTx = useMemo(() => {
     const filtered = transactions.filter((t) => {
       const matchPeriod = t.period === period;
@@ -61,6 +59,35 @@ export default function TransactionsTab({
     const sum = (type) => transactions.filter((t) => t.period === period && t.type === type).reduce((a, t) => a + Number(t.value || 0), 0);
     return { ingreso: sum("ingreso"), fijo: sum("fijo"), variable: sum("variable"), credito: sum("credito"), provision: sum("provision") };
   }, [transactions, period]);
+
+  const exportToCSV = () => {
+    if (periodTx.length === 0) {
+      alert("No hay movimientos en este período para exportar.");
+      return;
+    }
+
+    const headers = ["Fecha", "Nombre", "Tipo", "Categoría", "Método de Pago", "Valor", "Pagado"];
+    const rows = periodTx.map(t => [
+      t.date || "",
+      `"${(t.name || "").replace(/"/g, '""')}"`,
+      t.type,
+      `"${(t.category || "").replace(/"/g, '""')}"`,
+      t.payment_method || "",
+      t.value,
+      t.paid ? "Sí" : "No"
+    ]);
+
+    const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `transacciones_${period}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -143,7 +170,6 @@ export default function TransactionsTab({
     try {
       const newTransactions = [];
       for (const row of parsedRows) {
-        // Asignamos el periodo automáticamente según la fecha del CSV
         const derivedPeriod = row.date ? periodForTransaction(row.type, row.date, payDay, incomeAnchors) : period;
 
         const payload = {
@@ -162,17 +188,21 @@ export default function TransactionsTab({
         newTransactions.push(created);
       }
 
-      // Actualizamos el estado global
       setTransactions(prev => [...newTransactions, ...prev]);
       alert(`¡Éxito! Se importaron ${newTransactions.length} movimientos.`);
     } catch (error) {
       throw error;
     }
   };
+
   return (
     <div>
-      <SectionTitle eyebrow="Registro" title="Transacciones" right={<PeriodNav period={period} setPeriod={setPeriod} payDay={payDay} incomeAnchors={incomeAnchors} />} />
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
+      <SectionTitle eyebrow="Registro" title="Transactions" right={<PeriodNav period={period} setPeriod={setPeriod} payDay={payDay} incomeAnchors={incomeAnchors} />} />
+      
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 14 }}>
+        <Btn variant="ghost" onClick={exportToCSV}>
+          <Download size={14} /> Exportar CSV
+        </Btn>
         <Btn variant="ghost" onClick={() => setIsImportModalOpen(true)}>
           <Upload size={14} /> Importar CSV
         </Btn>
@@ -284,23 +314,19 @@ export default function TransactionsTab({
             ))}
           </div>
 
-          {/* BARRA DE FILTROS Y ORDENAMIENTO */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3 }}>{cyclePeriodLabelSmart(period, payDay, incomeAnchors).toUpperCase()}</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {/* Filtro por Tipo */}
               <select style={{ ...inputStyle, fontSize: 12.5, padding: "5px 8px" }} value={filterType} onChange={(e) => setFilterType(e.target.value)}>
                 <option value="todos">Todos los tipos</option>
                 {TX_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
               </select>
 
-              {/* NUEVO: Filtro por Categoría */}
               <select style={{ ...inputStyle, fontSize: 12.5, padding: "5px 8px" }} value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
                 <option value="todos">Todas las categorías</option>
                 {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
 
-              {/* Ordenamiento */}
               <select style={{ ...inputStyle, fontSize: 12.5, padding: "5px 8px" }} value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
                 {SORT_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
               </select>
