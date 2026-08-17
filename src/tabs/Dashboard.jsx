@@ -9,6 +9,7 @@ import { fmtCOP, fmtCompact } from "../lib/helpers.js";
 import { monthAbbrev, cycleRangeSmart } from "../lib/payCycle.js";
 import { Card, SectionTitle, PeriodNav, ProgressBar, Empty, LedgerStamp } from "../components/ui.jsx";
 
+
 export default function Dashboard({ transactions, goals, contributions, investments, budget, period, setPeriod, payDay, incomeAnchors }) {
   const periodTx = useMemo(() => transactions.filter((t) => t.period === period), [transactions, period]);
   
@@ -121,7 +122,19 @@ export default function Dashboard({ transactions, goals, contributions, investme
   ];
 
   const investTotal = investments.reduce((a, i) => a + Number(i.reserva || 0) + Number(i.renta_fija || 0) + Number(i.renta_variable || 0), 0);
-
+  // --- LÓGICA DEL RANKING DE CATEGORÍAS ---
+  const categoryRanking = useMemo(() => {
+    const map = {};
+    transactions
+      .filter(t => t.period === period && t.type !== "ingreso" && t.category)
+      .forEach(t => {
+        map[t.category] = (map[t.category] || 0) + Number(t.value || 0);
+      });
+    
+    return Object.entries(map)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [transactions, period]);
   return (
     <div>
       <SectionTitle eyebrow="Este período" title="Panorama" right={<PeriodNav period={period} setPeriod={setPeriod} payDay={payDay} incomeAnchors={incomeAnchors} />} />
@@ -304,6 +317,49 @@ export default function Dashboard({ transactions, goals, contributions, investme
               <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, color: C.inkSoft, fontWeight: 500, marginTop: 4 }}>
                 en {investments.length} registro{investments.length !== 1 ? "s" : ""}
               </div>
+            </div>
+          )}
+        </Card>
+        {/* Tarjeta de Top Gastos por Categoría */}
+      {/* Top Gastos por Categoría */}
+        <Card style={{ padding: 18 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3, marginBottom: 14 }}>
+            TOP GASTOS POR CATEGORÍA
+          </div>
+          
+          {categoryRanking.length === 0 ? (
+            <Empty text="No hay gastos registrados en este período." />
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {categoryRanking.map((cat, idx) => {
+                const maxVal = categoryRanking[0].value;
+                const pct = maxVal > 0 ? (cat.value / maxVal) * 100 : 0;
+                
+                return (
+                  <div key={cat.name} style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
+                      <span style={{ fontWeight: 600, color: C.ink }}>
+                        {idx + 1}. {cat.name}
+                      </span>
+                      <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontWeight: 600, color: C.ink }}>
+                        {fmtCOP(cat.value)}
+                      </span>
+                    </div>
+                    
+                    <div style={{ background: C.paperAlt, height: 6, borderRadius: 3, overflow: "hidden" }}>
+                      <div 
+                        style={{ 
+                          width: `${pct}%`, 
+                          background: idx === 0 ? C.coral : C.gold, 
+                          height: "100%", 
+                          borderRadius: 3,
+                          transition: "width 0.3s ease"
+                        }} 
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </Card>

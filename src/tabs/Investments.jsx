@@ -4,8 +4,8 @@ import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tool
 import { C } from "../theme.js";
 import { fmtCOP, fmtCompact } from "../lib/helpers.js";
 import { currentPeriod, cyclePeriodLabelSmart, monthAbbrev, periodForTransaction } from "../lib/payCycle.js";
-import { Card, SectionTitle, Field, inputStyle, Btn, Empty } from "../components/ui.jsx";
-// Importamos addTransaction desde data.js
+// Importamos PeriodNav
+import { Card, SectionTitle, PeriodNav, Field, inputStyle, Btn, Empty } from "../components/ui.jsx";
 import { addInvestment, updateInvestment, deleteInvestment, addTransaction } from "../lib/data.js";
 
 function emptyInv(period) { 
@@ -17,12 +17,12 @@ function emptyInv(period) {
     retiros: "", 
     rendimientos: "", 
     costos: "",
-    syncToTx: true // Nuevo: para controlar si se crea la transacción automática
+    syncToTx: true 
   }; 
 }
 
-export default function InvestmentsTab({ userId, investments, setInvestments, payDay, incomeAnchors, transactions, setTransactions }) {
-  const [form, setForm] = useState(emptyInv(currentPeriod(payDay)));
+export default function InvestmentsTab({ userId, investments, setInvestments, payDay, incomeAnchors, period, setPeriod, transactions, setTransactions }) {
+  const [form, setForm] = useState(emptyInv(period));
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [selectedPlatformFilter, setSelectedPlatformFilter] = useState("todos");
@@ -71,11 +71,9 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
         const updated = await updateInvestment(editingId, payload);
         setInvestments(investments.map((i) => (i.id === editingId ? updated : i)));
       } else {
-        // 1. Guardar el registro de inversión
         const created = await addInvestment(userId, payload);
         setInvestments([...investments, created]);
 
-        // 2. Si el usuario marcó la opción y hay un aporte mayor a 0, crear la transacción automática
         if (form.syncToTx && aporteVal > 0) {
           const derivedPeriod = form.date 
             ? periodForTransaction("provision", form.date, payDay, incomeAnchors) 
@@ -85,7 +83,7 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
             user_id: userId,
             name: `Ahorro / Inv: ${form.platform.trim()}`,
             type: "provision",
-            category: "Ahorro", // Puedes cambiar esta categoría por defecto si prefieres otra
+            category: "Ahorro",
             payment_method: "Transferencia",
             value: aporteVal,
             date: form.date || null,
@@ -98,7 +96,7 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
         }
       }
 
-      setForm(emptyInv(currentPeriod(payDay)));
+      setForm(emptyInv(period));
       setEditingId(null);
     } catch (error) {
       alert("Error al registrar el movimiento: " + error.message);
@@ -116,7 +114,7 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
       retiros: String(i.retiros ?? ""), 
       rendimientos: String(i.rendimientos ?? ""), 
       costos: String(i.costos ?? ""),
-      syncToTx: false // Al editar inversión no duplicamos transacciones automáticamente
+      syncToTx: false 
     }); 
     setEditingId(i.id); 
   };
@@ -143,7 +141,11 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
 
   return (
     <div>
-      <SectionTitle eyebrow="Reserva y crecimiento" title="Inversión y Ahorro" />
+      <SectionTitle 
+        eyebrow="Reserva y crecimiento" 
+        title="Inversión y Ahorro" 
+        right={<PeriodNav period={period} setPeriod={setPeriod} payDay={payDay} incomeAnchors={incomeAnchors} />} 
+      />
       <div className="mlc-grid-form-s">
         
         {/* Formulario */}
@@ -190,7 +192,6 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
               <input type="date" style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }} value={form.date || ""} onChange={(e) => setForm({ ...form, date: e.target.value })} disabled={saving} />
             </Field>
 
-            {/* Checkbox opcional para reflejar en transacciones */}
             {!editingId && (
               <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: C.inkSoft, fontWeight: 600, marginTop: 4 }}>
                 <input 
@@ -199,13 +200,13 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
                   onChange={(e) => setForm({ ...form, syncToTx: e.target.checked })} 
                   disabled={saving} 
                 /> 
-                Registrar también como transacción de provisión
+                Registrar aporte también como transacción de provisión
               </label>
             )}
 
             <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
               <Btn type="submit" disabled={saving}><Plus size={14} /> {saving ? "Guardando..." : (editingId ? "Guardar" : "Agregar")}</Btn>
-              {editingId && <Btn variant="ghost" disabled={saving} onClick={() => { setForm(emptyInv(currentPeriod(payDay))); setEditingId(null); }}><X size={14} /> Cancelar</Btn>}
+              {editingId && <Btn variant="ghost" disabled={saving} onClick={() => { setForm(emptyInv(period)); setEditingId(null); }}><X size={14} /> Cancelar</Btn>}
             </div>
           </form>
         </Card>

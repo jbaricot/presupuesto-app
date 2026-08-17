@@ -171,9 +171,9 @@ export default function App() {
                 contributions={contributions} 
                 setContributions={setContributions} 
                 period={period} 
+                setPeriod={setPeriod} // <-- Añadido
                 payDay={payDay} 
                 incomeAnchors={incomeAnchors}
-                /* -- NUEVOS PROPS AÑADIDOS -- */
                 transactions={transactions}
                 setTransactions={setTransactions}
               />
@@ -185,7 +185,8 @@ export default function App() {
                 setInvestments={setInvestments} 
                 payDay={payDay} 
                 incomeAnchors={incomeAnchors}
-                /* -- NUEVOS PROPS AÑADIDOS -- */
+                period={period} // <-- Añadido
+                setPeriod={setPeriod} // <-- Añadido
                 transactions={transactions}
                 setTransactions={setTransactions}
               />

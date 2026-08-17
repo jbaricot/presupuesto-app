@@ -85,8 +85,14 @@ export async function fetchContributions(userId) {
   return data;
 }
 
-export async function addContribution(userId, { goalId, period, value }) {
-  const { data, error } = await supabase.from("goal_contributions").insert({ user_id: userId, goal_id: goalId, period, value }).select().single();
+export async function addContribution(userId, { goalId, period, value, transactionId }) {
+  const { data, error } = await supabase.from("goal_contributions").insert({ 
+    user_id: userId, 
+    goal_id: goalId, 
+    period, 
+    value, 
+    transaction_id: transactionId || null 
+  }).select().single();
   if (error) throw error;
   return data;
 }
