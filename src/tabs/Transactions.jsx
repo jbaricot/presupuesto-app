@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Plus, X, Pencil, Trash2, ArrowUpDown } from "lucide-react";
+import { Plus, X, Pencil, Trash2 } from "lucide-react";
 import { C, TX_TYPES, TX_TYPE_LABEL, PAYMENT_METHODS } from "../theme.js";
 import { fmtCOP, fmtCompact } from "../lib/helpers.js";
 import { periodForTransaction, cyclePeriodLabelSmart } from "../lib/payCycle.js";
 import { Card, SectionTitle, PeriodNav, Field, inputStyle, Btn, Empty } from "../components/ui.jsx";
-// Importamos addContribution y addInvestment
 import { addTransaction, updateTransaction, deleteTransaction, addContribution, addInvestment } from "../lib/data.js";
 
 const SORT_OPTIONS = [
@@ -27,7 +26,6 @@ function sortTx(list, sortBy) {
   }
 }
 
-// Añadimos "allocation" y "platform" al estado inicial vacío
 function emptyTx(period) {
   return { period, date: "", name: "", type: "variable", category: "", payment_method: "Débito", value: "", paid: false, allocation: "none", platform: "" };
 }
@@ -39,15 +37,22 @@ export default function TransactionsTab({
   const [form, setForm] = useState(emptyTx(period));
   const [editingId, setEditingId] = useState(null);
   const [filterType, setFilterType] = useState("todos");
+  const [filterCategory, setFilterCategory] = useState("todos"); // <-- NUEVO: Estado para filtrar por categoría
   const [sortBy, setSortBy] = useState("date_desc");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => { setForm(emptyTx(period)); setEditingId(null); }, [period]);
 
-  const periodTx = useMemo(
-    () => sortTx(transactions.filter((t) => t.period === period && (filterType === "todos" || t.type === filterType)), sortBy),
-    [transactions, period, filterType, sortBy]
-  );
+  // Lógica de filtrado actualizada (Periodo + Tipo + Categoría) y Ordenamiento
+  const periodTx = useMemo(() => {
+    const filtered = transactions.filter((t) => {
+      const matchPeriod = t.period === period;
+      const matchType = filterType === "todos" || t.type === filterType;
+      const matchCategory = filterCategory === "todos" || t.category === filterCategory;
+      return matchPeriod && matchType && matchCategory;
+    });
+    return sortTx(filtered, sortBy);
+  }, [transactions, period, filterType, filterCategory, sortBy]);
 
   const totals = useMemo(() => {
     const sum = (type) => transactions.filter((t) => t.period === period && t.type === type).reduce((a, t) => a + Number(t.value || 0), 0);
@@ -64,27 +69,23 @@ export default function TransactionsTab({
       
       const payload = { ...form, period: derivedPeriod, value: Number(form.value), date: form.date || null };
       delete payload.allocation;
-      delete payload.platform; // No existe como columna directa en transacciones
+      delete payload.platform;
 
       if (editingId) {
         const updated = await updateTransaction(editingId, payload);
         setTransactions(transactions.map((t) => (t.id === editingId ? updated : t)));
       } else {
-        // 1. Guardar la transacción principal
         const created = await addTransaction(userId, payload);
         setTransactions([created, ...transactions]);
 
-        // 2. Si es provisión, procesar las vinculaciones automáticas
         if (form.type === "provision") {
           const val = Number(form.value);
           
-          // A. Vincular a Meta si se seleccionó una
           if (form.allocation && form.allocation.startsWith("goal_")) {
             const goalId = form.allocation.replace("goal_", "");
-            const newContrib = await addContribution(userId, { goalId, period: derivedPeriod, value: val });
+            const newContrib = await addContribution(userId, { goalId, period: derivedPeriod, value: val, transactionId: created.id });
             setContributions([...contributions, newContrib]);
           } 
-          // B. Vincular a Inversión Antigua por tipo
           else if (form.allocation && form.allocation.startsWith("inv_")) {
             const invType = form.allocation.replace("inv_", "");
             const newInv = await addInvestment(userId, {
@@ -97,7 +98,6 @@ export default function TransactionsTab({
             setInvestments([...investments, newInv]);
           }
 
-          // C. Sincronizar con la nueva estructura de Inversiones (si escribieron una Plataforma)
           if (form.platform && form.platform.trim() !== "") {
             const newInvPlatform = await addInvestment(userId, {
               period: derivedPeriod,
@@ -155,7 +155,6 @@ export default function TransactionsTab({
               </select>
             </Field>
 
-            {/* --- SECCIÓN CONDICIONAL PARA PROVISIÓN / AHORRO --- */}
             {form.type === "provision" && (
               <div style={{ background: C.paperAlt, padding: 10, borderRadius: 8, display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ fontSize: 11.5, fontWeight: 700, color: C.inkSoft }}>VINCULACIÓN AUTOMÁTICA DE AHORRO</div>
@@ -186,7 +185,6 @@ export default function TransactionsTab({
                 {editingId && <span style={{fontSize: 10, color: C.inkFaint}}>* La vinculación automática solo aplica al crear movimientos nuevos.</span>}
               </div>
             )}
-            {/* --- FIN SECCIÓN CONDICIONAL --- */}
 
             {form.type !== "ingreso" && (
               <Field label="Categoría">
@@ -240,13 +238,23 @@ export default function TransactionsTab({
             ))}
           </div>
           
+          {/* BARRA DE FILTROS Y ORDENAMIENTO */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3 }}>{cyclePeriodLabelSmart(period, payDay, incomeAnchors).toUpperCase()}</div>
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {/* Filtro por Tipo */}
               <select style={{ ...inputStyle, fontSize: 12.5, padding: "5px 8px" }} value={filterType} onChange={(e) => setFilterType(e.target.value)}>
                 <option value="todos">Todos los tipos</option>
                 {TX_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
               </select>
+
+              {/* NUEVO: Filtro por Categoría */}
+              <select style={{ ...inputStyle, fontSize: 12.5, padding: "5px 8px" }} value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
+                <option value="todos">Todas las categorías</option>
+                {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+              </select>
+
+              {/* Ordenamiento */}
               <select style={{ ...inputStyle, fontSize: 12.5, padding: "5px 8px" }} value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
                 {SORT_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
               </select>
