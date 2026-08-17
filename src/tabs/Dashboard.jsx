@@ -1,17 +1,17 @@
 import React, { useMemo } from "react";
-import { ArrowUpRight, ArrowDownRight, AlertTriangle } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, AlertTriangle, Clock } from "lucide-react";
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend,
-  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, AreaChart, Area
 } from "recharts";
 import { C, CHART_COLORS } from "../theme.js";
 import { fmtCOP, fmtCompact } from "../lib/helpers.js";
-import { monthAbbrev } from "../lib/payCycle.js";
+import { monthAbbrev, cycleRangeSmart } from "../lib/payCycle.js";
 import { Card, SectionTitle, PeriodNav, ProgressBar, Empty, LedgerStamp } from "../components/ui.jsx";
 
 export default function Dashboard({ transactions, goals, contributions, investments, budget, period, setPeriod, payDay, incomeAnchors }) {
   const periodTx = useMemo(() => transactions.filter((t) => t.period === period), [transactions, period]);
-
+  
   const totals = useMemo(() => {
     const sum = (type) => periodTx.filter((t) => t.type === type).reduce((a, t) => a + Number(t.value || 0), 0);
     const ingresos = sum("ingreso");
@@ -53,7 +53,7 @@ export default function Dashboard({ transactions, goals, contributions, investme
   /** Tasa de ahorro: % del ingreso del ciclo que fue a provisión/ahorro */
   const savingsRate = totals.ingresos > 0 ? (totals.provision / totals.ingresos) * 100 : null;
 
-  /** Meses de reserva cubiertos: reserva de oxígeno actual ÷ promedio de gastos fijos recientes */
+  /** Meses de reserva cubiertos: reserva de oxígeno actual / promedio de gastos fijos recientes */
   const monthsOfReserve = useMemo(() => {
     if (investments.length === 0) return null;
     const latestInv = investments.slice().sort((a, b) => b.period.localeCompare(a.period))[0];
@@ -69,6 +69,48 @@ export default function Dashboard({ transactions, goals, contributions, investme
     return { reserva, avgFijos, months: reserva / avgFijos };
   }, [investments, transactions]);
 
+  /** Pacing / Velocidad de Gasto: Compara el tiempo transcurrido vs el presupuesto consumido */
+  const pacing = useMemo(() => {
+    const { start, end } = cycleRangeSmart(period, payDay, incomeAnchors);
+    const now = new Date();
+    
+    const totalDays = Math.max(1, (end - start) / 86400000);
+    const elapsedDays = Math.max(0, Math.min((now - start) / 86400000, totalDays));
+    const timePct = (elapsedDays / totalDays) * 100;
+    
+    const budgetOp = Number(budget.fijos) + Number(budget.variables);
+    const spentOp = totals.fijos + totals.variables;
+    const spentPct = budgetOp > 0 ? (spentOp / budgetOp) * 100 : 0;
+    
+    const isDanger = spentPct > (timePct + 5); // +5% de margen de tolerancia
+    
+    return { timePct, spentPct, elapsedDays: Math.round(elapsedDays), totalDays: Math.round(totalDays), isDanger };
+  }, [period, payDay, incomeAnchors, budget, totals]);
+
+  /** Evolución del Patrimonio Neto: Efectivo acumulado + Inversiones */
+  const netWorthData = useMemo(() => {
+    let accCash = 0;
+    let accInv = 0;
+    
+    const allPeriods = Array.from(new Set([...transactions.map(t => t.period), ...investments.map(i => i.period)])).sort();
+    
+    return allPeriods.map(p => {
+      const txs = transactions.filter(t => t.period === p);
+      const inFlow = txs.filter(t => t.type === "ingreso").reduce((a, t) => a + Number(t.value), 0);
+      const outFlow = txs.filter(t => t.type !== "ingreso").reduce((a, t) => a + Number(t.value), 0);
+      accCash += (inFlow - outFlow);
+      
+      const invs = investments.filter(i => i.period === p);
+      const periodInv = invs.reduce((a, i) => a + Number(i.reserva) + Number(i.renta_fija) + Number(i.renta_variable), 0);
+      accInv += periodInv;
+      
+      return {
+        label: monthAbbrev(p),
+        Patrimonio: accCash + accInv,
+      };
+    });
+  }, [transactions, investments]);
+
   const rateColor = (v, good, ok) => (v >= good ? C.sage : v >= ok ? C.gold : C.coral);
 
   const budgetRows = [
@@ -83,7 +125,7 @@ export default function Dashboard({ transactions, goals, contributions, investme
   return (
     <div>
       <SectionTitle eyebrow="Este período" title="Panorama" right={<PeriodNav period={period} setPeriod={setPeriod} payDay={payDay} incomeAnchors={incomeAnchors} />} />
-
+      
       <div className="mlc-grid-stamp" style={{ marginBottom: 20 }}>
         <Card style={{ padding: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <LedgerStamp value={totals.saldo} />
@@ -126,7 +168,7 @@ export default function Dashboard({ transactions, goals, contributions, investme
         </div>
       </div>
 
-      <div className="mlc-grid-2" style={{ marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20, marginBottom: 20 }}>
         <Card style={{ padding: "16px 18px" }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3, marginBottom: 4 }}>TASA DE AHORRO</div>
           {savingsRate === null ? (
@@ -140,20 +182,44 @@ export default function Dashboard({ transactions, goals, contributions, investme
             </>
           )}
         </Card>
+
         <Card style={{ padding: "16px 18px" }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3, marginBottom: 4 }}>MESES DE RESERVA CUBIERTOS</div>
           {monthsOfReserve === null ? (
-            <div style={{ fontSize: 12.5, color: C.inkFaint, marginTop: 8 }}>Registra tu reserva de oxígeno e histórico de gastos fijos para calcularlo.</div>
+            <div style={{ fontSize: 12.5, color: C.inkFaint, marginTop: 8 }}>Registra tu reserva e histórico de fijos para calcularlo.</div>
           ) : (
             <>
               <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 28, fontWeight: 600, color: rateColor(monthsOfReserve.months, 3, 1) }}>
                 {monthsOfReserve.months.toFixed(1)}
               </div>
               <div style={{ fontSize: 12, color: C.inkFaint, marginTop: 2 }}>
-                con {fmtCompact(monthsOfReserve.reserva)} de reserva, a un promedio de {fmtCompact(monthsOfReserve.avgFijos)} en fijos por ciclo
+                con {fmtCompact(monthsOfReserve.reserva)} de reserva operativa
               </div>
             </>
           )}
+        </Card>
+
+        <Card style={{ padding: "16px 18px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3 }}>VELOCIDAD DE GASTO OPERATIVO</div>
+            {pacing.isDanger && <AlertTriangle size={15} color={C.coral} />}
+          </div>
+          
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.inkFaint, marginBottom: 4 }}>
+            <span>Día {pacing.elapsedDays} de {pacing.totalDays}</span>
+            <span>{pacing.timePct.toFixed(0)}% del tiempo</span>
+          </div>
+          <ProgressBar pct={pacing.timePct} color={C.inkFaint} />
+
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.inkSoft, fontWeight: 600, marginTop: 10, marginBottom: 4 }}>
+            <span>Consumo (Fijos + Var)</span>
+            <span style={{ color: pacing.isDanger ? C.coral : C.sage }}>{pacing.spentPct.toFixed(0)}% gastado</span>
+          </div>
+          <ProgressBar pct={pacing.spentPct} color={pacing.isDanger ? C.coral : C.sage} />
+          
+          <div style={{ fontSize: 11, color: pacing.isDanger ? C.coral : C.inkFaint, marginTop: 8, lineHeight: 1.3 }}>
+            {pacing.isDanger ? "Tu ritmo de gasto supera el avance de los días. Ajusta variables." : "Ritmo de gasto saludable acorde al tiempo del ciclo."}
+          </div>
         </Card>
       </div>
 
@@ -185,6 +251,29 @@ export default function Dashboard({ transactions, goals, contributions, investme
                 <Line type="monotone" dataKey="ingresos" stroke={C.sage} strokeWidth={2.5} dot={false} name="Ingresos" />
                 <Line type="monotone" dataKey="gastos" stroke={C.coral} strokeWidth={2.5} dot={false} name="Gastos" />
               </LineChart>
+            </ResponsiveContainer>
+          )}
+        </Card>
+      </div>
+
+      <div style={{ marginBottom: 20 }}>
+        <Card style={{ padding: 18 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3, marginBottom: 10 }}>EVOLUCIÓN DEL PATRIMONIO NETO</div>
+          {netWorthData.length === 0 ? <Empty text="Aún no hay datos históricos." /> : (
+            <ResponsiveContainer width="100%" height={260}>
+              <AreaChart data={netWorthData}>
+                <defs>
+                  <linearGradient id="colorPatrimonio" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={C.sage} stopOpacity={0.4}/>
+                    <stop offset="95%" stopColor={C.sage} stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke={C.line} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fontFamily: "Inter", fill: C.inkSoft }} />
+                <YAxis tick={{ fontSize: 10, fontFamily: "Inter", fill: C.inkSoft }} tickFormatter={fmtCompact} />
+                <Tooltip formatter={(v) => fmtCOP(v)} contentStyle={{ fontFamily: "Inter", fontSize: 12, borderRadius: 8, border: `1px solid ${C.line}` }} />
+                <Area type="monotone" dataKey="Patrimonio" stroke={C.sage} strokeWidth={3} fillOpacity={1} fill="url(#colorPatrimonio)" />
+              </AreaChart>
             </ResponsiveContainer>
           )}
         </Card>

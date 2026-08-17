@@ -146,13 +146,49 @@ export default function App() {
               <Dashboard transactions={transactions} goals={goals} contributions={contributions} investments={investments} budget={budget} period={period} setPeriod={setPeriod} payDay={payDay} incomeAnchors={incomeAnchors} />
             )}
             {tab === "transacciones" && (
-              <TransactionsTab userId={userId} transactions={transactions} setTransactions={setTransactions} categories={categories} period={period} setPeriod={setPeriod} payDay={payDay} incomeAnchors={incomeAnchors} />
+              <TransactionsTab 
+                userId={userId} 
+                transactions={transactions} 
+                setTransactions={setTransactions} 
+                categories={categories} 
+                period={period} 
+                setPeriod={setPeriod} 
+                payDay={payDay} 
+                incomeAnchors={incomeAnchors}
+                goals={goals}
+                contributions={contributions}
+                setContributions={setContributions}
+                /* -- NUEVOS PROPS AÑADIDOS -- */
+                investments={investments}
+                setInvestments={setInvestments}
+              />
             )}
             {tab === "metas" && (
-              <GoalsTab userId={userId} goals={goals} setGoals={setGoals} contributions={contributions} setContributions={setContributions} period={period} payDay={payDay} incomeAnchors={incomeAnchors} />
+              <GoalsTab 
+                userId={userId} 
+                goals={goals} 
+                setGoals={setGoals} 
+                contributions={contributions} 
+                setContributions={setContributions} 
+                period={period} 
+                payDay={payDay} 
+                incomeAnchors={incomeAnchors}
+                /* -- NUEVOS PROPS AÑADIDOS -- */
+                transactions={transactions}
+                setTransactions={setTransactions}
+              />
             )}
             {tab === "inversiones" && (
-              <InvestmentsTab userId={userId} investments={investments} setInvestments={setInvestments} payDay={payDay} incomeAnchors={incomeAnchors} />
+              <InvestmentsTab 
+                userId={userId} 
+                investments={investments} 
+                setInvestments={setInvestments} 
+                payDay={payDay} 
+                incomeAnchors={incomeAnchors}
+                /* -- NUEVOS PROPS AÑADIDOS -- */
+                transactions={transactions}
+                setTransactions={setTransactions}
+              />
             )}
             {tab === "categorias" && (
               <CategoriesTab userId={userId} categories={categories} setCategories={setCategories} />

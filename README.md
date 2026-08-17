@@ -1,23 +1,52 @@
+Aquí tienes una versión actualizada y completa del **`README.md`** para tu repositorio de Git, integrando todas las nuevas capacidades que hemos construido: los ciclos inteligentes, las metas jerárquicas con sub-metas, el control detallado de inversiones por plataforma con rendimientos/costos, la sincronización bidireccional de transacciones y los nuevos KPIs financieros.
+
+---
+
 # Mi Libro de Cuentas
 
-App de presupuesto personal: transacciones, metas, inversión, presupuesto e indicadores, con base de datos propia en Supabase.
+App avanzada de presupuesto personal: transacciones, metas jerárquicas (bolsillos/sinking funds), control detallado de inversiones y ahorros por plataforma, presupuesto, indicadores de rendimiento en tiempo real y base de datos propia en Supabase.
 
 ## Stack
-- **Frontend:** React + Vite
-- **Base de datos + Auth:** Supabase (Postgres, gratis)
-- **Hosting sugerido:** Vercel (gratis)
+
+* **Frontend:** React + Vite, Recharts, Lucide Icons
+* **Base de datos + Auth:** Supabase (Postgres, Row Level Security)
+* **Hosting sugerido:** Vercel
 
 ---
 
 ## 1. Crear el proyecto en Supabase
 
-1. Ve a https://supabase.com → crea una cuenta → **New project**.
+1. Ve a [https://supabase.com](https://supabase.com) → crea una cuenta → **New project**.
+
+
 2. Elige nombre, contraseña de base de datos (guárdala) y región (idealmente cercana a Colombia, ej. `us-east-1`).
-3. Cuando el proyecto esté listo, ve a **SQL Editor → New query**, pega todo el contenido de `supabase/schema.sql` de este repo, y dale **Run**. Esto crea las tablas y las políticas de seguridad (cada usuario solo ve sus propios datos).
-4. Ve a **Authentication → Providers → Email** y confirma que esté habilitado (viene por defecto). No necesitas configurar contraseñas: la app usa "magic link" (enlace por correo).
-5. Ve a **Project Settings → API**. Copia:
-   - `Project URL`
-   - `anon public` key
+
+
+3. Cuando el proyecto esté listo, ve a **SQL Editor → New query**, pega el contenido del esquema base y ejecuta las siguientes consultas para soportar sub-metas y el desglose de inversiones:
+```sql
+-- Esquema para sub-metas jerárquicas
+ALTER TABLE goals ADD COLUMN IF NOT EXISTS parent_goal_id UUID REFERENCES goals(id) ON DELETE CASCADE;
+
+-- Campos detallados para inversiones y ahorros por plataforma
+ALTER TABLE investments ADD COLUMN IF NOT EXISTS platform TEXT DEFAULT 'General';
+ALTER TABLE investments ADD COLUMN IF NOT EXISTS aporte NUMERIC DEFAULT 0;
+ALTER TABLE investments ADD COLUMN IF NOT EXISTS retiros NUMERIC DEFAULT 0;
+ALTER TABLE investments ADD COLUMN IF NOT EXISTS rendimientos NUMERIC DEFAULT 0;
+ALTER TABLE investments ADD COLUMN IF NOT EXISTS costos NUMERIC DEFAULT 0;
+
+```
+
+
+4. Ve a **Authentication → Providers → Email** y confirma que esté habilitado. Puedes usar acceso por enlace (magic link) o contraseña.
+
+
+5. Ve a **Project Settings → API** y copia:
+
+
+* `Project URL`
+* `anon public` key
+
+
 
 ---
 
@@ -26,71 +55,63 @@ App de presupuesto personal: transacciones, metas, inversión, presupuesto e ind
 ```bash
 npm install
 cp .env.example .env
+
 ```
 
 Abre `.env` y pega tus valores de Supabase:
 
-```
+```env
 VITE_SUPABASE_URL=https://tuproyecto.supabase.co
 VITE_SUPABASE_ANON_KEY=tu-clave-anonima
+
 ```
 
 Prueba localmente:
 
 ```bash
 npm run dev
+
 ```
 
-Abre `http://localhost:5173`, escribe tu correo, revisa tu bandeja de entrada y haz clic en el enlace de acceso.
+Abre `http://localhost:5173` en tu navegador.
 
 ---
 
-## 3. Desplegar en Vercel (acceso remoto desde cualquier dispositivo)
+## 3. Características Principales de la Versión Actual
 
-1. Sube este proyecto a un repositorio de GitHub (puedes usar `git init`, `git add .`, `git commit`, y crear el repo en GitHub).
-2. Ve a https://vercel.com → **Add New → Project** → conecta tu repo.
-3. En **Environment Variables**, agrega las mismas dos variables de tu `.env`:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
-4. Deploy. Vercel te da una URL pública (ej. `https://mi-libro-de-cuentas.vercel.app`).
-5. En Supabase, ve a **Authentication → URL Configuration** y agrega esa URL en **Site URL** y **Redirect URLs**, para que el enlace de acceso funcione también en producción.
+* **Ciclos de Pago Dinámicos e Inteligentes:** Define tu día de pago (ej. 26 de cada mes) para que los períodos se ajusten al flujo real de tu dinero, o usa anclas automáticas basadas en las fechas reales de tus ingresos.
 
-Desde ese momento puedes entrar desde tu celular o tu PC con el mismo correo y vas a ver los mismos datos, guardados en tu base de datos de Supabase.
+
+* **Metas Jerárquicas (Bolsillos / Sinking Funds):** Estructura tus finanzas agrupando sub-metas (ej. *SOAT*, *Seguro Auto*, *Predial*) dentro de macro-metas (ej. *Gastos Anuales*), con cálculo automático de totales y barras de progreso globales.
+* **Inversiones y Ahorros Multientidad:** Registra el estado de tu dinero indicando la plataforma o entidad (Nubank, Skandia, etc.) y desglosando con precisión **Aportes, Retiros, Rendimientos y Costos**.
+* **Sincronización Bidireccional:** Los movimientos de ahorro o aportes a metas pueden reflejarse automáticamente como transacciones de provisión en tu flujo de caja con un solo clic.
+* **KPIs Financieros Avanzados:**
+* *Velocidad de Gasto Operativo (Burn Rate / Pacing):* Monitoreo proactivo del avance de los días del ciclo frente al consumo real del presupuesto operativo.
+* *Patrimonio Neto:* Gráfica de área que consolida la evolución histórica del efectivo acumulado y las inversiones.
+
+
+* **Seguridad Robusta:** Cada tabla cuenta con *Row Level Security* (RLS) habilitado en Supabase, garantizando que cada usuario autenticado mantenga sus datos estrictamente privados y aislados.
+
+
 
 ---
 
-## Estructura del proyecto
+## 4. Desplegar en Vercel (Acceso Remoto)
 
-```
-src/
-  supabaseClient.js   # cliente de Supabase
-  theme.js             # colores, tipografía, categorías por defecto
-  lib/
-    helpers.js          # formateo de moneda, fechas, períodos
-    data.js              # funciones CRUD contra Supabase
-  components/
-    ui.jsx               # Card, Btn, ProgressBar, etc.
-    Login.jsx            # pantalla de acceso (magic link)
-  tabs/
-    Dashboard.jsx, Transactions.jsx, Goals.jsx, Investments.jsx, Categories.jsx, Budget.jsx
-  App.jsx               # navegación y orquestación de datos
-supabase/
-  schema.sql            # esquema completo con Row Level Security
-```
+1. Sube este proyecto a un repositorio de GitHub.
 
-## Ciclos de pago (si te pagan en una fecha distinta al 1°)
 
-Si tu ingreso llega, por ejemplo, el 26 de cada mes, ve a la pestaña **Presupuesto** y define ese día como tu "día de pago". A partir de ahí:
+2. Ve a [https://vercel.com](https://vercel.com) → **Add New → Project** → conecta tu repositorio.
 
-- Cada período deja de ser un mes calendario y pasa a ser el ciclo real de tu plata: del 26 de un mes al 25 del siguiente.
-- Al registrar una transacción con fecha, la app calcula sola a qué ciclo pertenece (los últimos días del mes quedan agrupados con el ciclo que ese pago financia, no con el mes calendario).
-- Si dejas el día de pago en 1, todo se comporta como mes calendario normal (comportamiento por defecto).
 
-**Si ya desplegaste la app antes de este cambio:** corre `supabase/migration_pay_day.sql` en el SQL Editor de Supabase para agregar la columna nueva sin perder tus datos existentes.
+3. En **Environment Variables**, agrega las variables de entorno:
 
-## Notas
 
-- **Seguridad:** cada tabla tiene Row Level Security activado — aunque la URL sea pública, nadie puede ver o modificar los datos de otra persona, solo los suyos.
-- **Respaldo:** puedes exportar tus datos en cualquier momento desde Supabase (**Table Editor** → exportar CSV, o `pg_dump` desde la línea de comandos).
-- **Costos:** el plan gratuito de Supabase y Vercel es suficiente para uso personal indefinidamente, mientras no superes ~500MB de base de datos.
-- **Múltiples usuarios:** si en el futuro quieres compartir la app con tu pareja o familia con datos separados, ya funciona así de fábrica — cada correo que inicie sesión tiene sus propios datos aislados.
+* `VITE_SUPABASE_URL`
+* `VITE_SUPABASE_ANON_KEY`
+
+
+4. Despliega. Vercel te asignará una URL pública.
+
+
+5. En Supabase, ve a **Authentication → URL Configuration** y agrega tu URL de Vercel en **Site URL** y **Redirect URLs**.

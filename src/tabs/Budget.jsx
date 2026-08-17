@@ -11,6 +11,7 @@ export default function BudgetTab({ userId, budget, setBudget }) {
     creditos: String(budget.creditos || ""), variables: String(budget.variables || ""),
     pay_day: String(budget.pay_day || 1),
   });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setForm({
@@ -24,17 +25,24 @@ export default function BudgetTab({ userId, budget, setBudget }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    const payload = {
-      provision: Number(form.provision || 0), fijos: Number(form.fijos || 0),
-      creditos: Number(form.creditos || 0), variables: Number(form.variables || 0),
-      pay_day: Math.min(Math.max(Number(form.pay_day || 1), 1), 28),
-    };
-    const saved = await upsertBudget(userId, payload);
-    setBudget(saved);
+    setSaving(true);
+    try {
+      const payload = {
+        provision: Number(form.provision || 0), fijos: Number(form.fijos || 0),
+        creditos: Number(form.creditos || 0), variables: Number(form.variables || 0),
+        pay_day: Math.min(Math.max(Number(form.pay_day || 1), 1), 28),
+      };
+      const saved = await upsertBudget(userId, payload);
+      setBudget(saved);
+    } catch (error) {
+      alert("Error al actualizar el presupuesto: " + error.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const ROWS = [
-    { key: "provision", label: "Provisión" },
+    { key: "provision", label: "Provisión/Ahorrros" },
     { key: "fijos", label: "Gastos fijos" },
     { key: "creditos", label: "Créditos" },
     { key: "variables", label: "Gastos variables" },
@@ -50,13 +58,12 @@ export default function BudgetTab({ userId, budget, setBudget }) {
           <strong style={{ color: C.inkSoft }}>Este día es solo de referencia.</strong> Si un mes te pagan otro día (por un fin de semana, festivo o adelanto), la app ajusta el ciclo solo con que registres el ingreso con su fecha real — no necesitas cambiar esta configuración cada vez.
         </div>
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <Field label="Día de pago del mes (1–28)">
-            <input type="number" min="1" max="28" style={inputStyle} value={form.pay_day} onChange={(e) => setForm({ ...form, pay_day: e.target.value })} />
+          <Field label="Día de pago del mes (1 - 28)">
+            <input type="number" min="1" max="28" style={inputStyle} value={form.pay_day} onChange={(e) => setForm({ ...form, pay_day: e.target.value })} disabled={saving} />
           </Field>
-          <Btn type="submit"><Check size={14} /> Guardar día de pago</Btn>
+          <Btn type="submit" disabled={saving}><Check size={14} /> {saving ? "Guardando..." : "Guardar día de pago"}</Btn>
         </form>
       </Card>
-
       <Card style={{ padding: 22, maxWidth: 480 }}>
         <div style={{ fontSize: 12, color: C.inkFaint, marginBottom: 16 }}>
           Define cuánto planeas destinar cada ciclo a cada rubro. El panorama comparará tus gastos reales contra estos límites.
@@ -64,14 +71,14 @@ export default function BudgetTab({ userId, budget, setBudget }) {
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {ROWS.map((r) => (
             <Field key={r.key} label={r.label}>
-              <input type="number" min="0" style={inputStyle} value={form[r.key]} onChange={(e) => setForm({ ...form, [r.key]: e.target.value })} placeholder="0" />
+              <input type="number" min="0" style={inputStyle} value={form[r.key]} onChange={(e) => setForm({ ...form, [r.key]: e.target.value })} placeholder="0" disabled={saving} />
             </Field>
           ))}
           <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 0", borderTop: `1px solid ${C.line}`, marginTop: 4 }}>
             <span style={{ fontWeight: 700, color: C.ink, fontSize: 13.5 }}>Total mensual</span>
             <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700, color: C.ink, fontSize: 15 }}>{fmtCOP(total)}</span>
           </div>
-          <Btn type="submit"><Check size={14} /> Guardar presupuesto</Btn>
+          <Btn type="submit" disabled={saving}><Check size={14} /> {saving ? "Guardando..." : "Guardar presupuesto"}</Btn>
         </form>
       </Card>
     </div>

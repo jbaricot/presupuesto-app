@@ -6,22 +6,26 @@ export async function fetchCategories(userId) {
   if (error) throw error;
   return data;
 }
+
 export async function seedDefaultCategories(userId, defaults) {
   const rows = defaults.map((c) => ({ user_id: userId, name: c.name, description: c.desc }));
   const { data, error } = await supabase.from("categories").insert(rows).select();
   if (error) throw error;
   return data;
 }
+
 export async function addCategory(userId, { name, desc }) {
   const { data, error } = await supabase.from("categories").insert({ user_id: userId, name, description: desc }).select().single();
   if (error) throw error;
   return data;
 }
+
 export async function updateCategory(id, { name, desc }) {
   const { data, error } = await supabase.from("categories").update({ name, description: desc }).eq("id", id).select().single();
   if (error) throw error;
   return data;
 }
+
 export async function deleteCategory(id) {
   const { error } = await supabase.from("categories").delete().eq("id", id);
   if (error) throw error;
@@ -33,32 +37,43 @@ export async function fetchTransactions(userId) {
   if (error) throw error;
   return data;
 }
+
 export async function addTransaction(userId, row) {
   const { data, error } = await supabase.from("transactions").insert({ user_id: userId, ...row }).select().single();
   if (error) throw error;
   return data;
 }
+
 export async function updateTransaction(id, row) {
   const { data, error } = await supabase.from("transactions").update(row).eq("id", id).select().single();
   if (error) throw error;
   return data;
 }
+
 export async function deleteTransaction(id) {
   const { error } = await supabase.from("transactions").delete().eq("id", id);
   if (error) throw error;
 }
 
-/* ============ METAS ============ */
+/* ============ METAS Y SUB-METAS ============ */
 export async function fetchGoals(userId) {
   const { data, error } = await supabase.from("goals").select("*").eq("user_id", userId).order("created_at");
   if (error) throw error;
   return data;
 }
-export async function addGoal(userId, { name, total, dueDate }) {
-  const { data, error } = await supabase.from("goals").insert({ user_id: userId, name, target_total: total, due_date: dueDate || null }).select().single();
+
+export async function addGoal(userId, { name, total, dueDate, parentGoalId }) {
+  const { data, error } = await supabase.from("goals").insert({ 
+    user_id: userId, 
+    name, 
+    target_total: total, 
+    due_date: dueDate || null,
+    parent_goal_id: parentGoalId || null 
+  }).select().single();
   if (error) throw error;
   return data;
 }
+
 export async function deleteGoal(id) {
   const { error } = await supabase.from("goals").delete().eq("id", id);
   if (error) throw error;
@@ -69,10 +84,22 @@ export async function fetchContributions(userId) {
   if (error) throw error;
   return data;
 }
+
 export async function addContribution(userId, { goalId, period, value }) {
   const { data, error } = await supabase.from("goal_contributions").insert({ user_id: userId, goal_id: goalId, period, value }).select().single();
   if (error) throw error;
   return data;
+}
+
+export async function updateContribution(id, row) {
+  const { data, error } = await supabase.from("goal_contributions").update(row).eq("id", id).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteContribution(id) {
+  const { error } = await supabase.from("goal_contributions").delete().eq("id", id);
+  if (error) throw error;
 }
 
 /* ============ INVERSIONES ============ */
@@ -81,16 +108,19 @@ export async function fetchInvestments(userId) {
   if (error) throw error;
   return data;
 }
+
 export async function addInvestment(userId, row) {
   const { data, error } = await supabase.from("investments").insert({ user_id: userId, ...row }).select().single();
   if (error) throw error;
   return data;
 }
+
 export async function updateInvestment(id, row) {
   const { data, error } = await supabase.from("investments").update(row).eq("id", id).select().single();
   if (error) throw error;
   return data;
 }
+
 export async function deleteInvestment(id) {
   const { error } = await supabase.from("investments").delete().eq("id", id);
   if (error) throw error;
@@ -102,6 +132,7 @@ export async function fetchBudget(userId) {
   if (error) throw error;
   return data;
 }
+
 export async function upsertBudget(userId, row) {
   const { data, error } = await supabase.from("budget").upsert({ user_id: userId, ...row, updated_at: new Date().toISOString() }).select().single();
   if (error) throw error;
