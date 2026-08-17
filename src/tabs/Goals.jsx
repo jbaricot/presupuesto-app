@@ -1,9 +1,29 @@
+/**
+ * tabs/Goals.jsx
+ * ─────────────────────────────────────────────────────────────────────────
+ * Metas financieras con soporte de sub-metas (jerarquía de 1 nivel):
+ *   - Una meta "principal" con parent_goal_id = null.
+ *   - Sus "sub-metas" apuntan a ella vía parent_goal_id.
+ *   - El progreso de una principal CON sub-metas se calcula sumando el
+ *     ahorro/objetivo de sus sub-metas (no tiene aportes propios).
+ *   - Una principal SIN sub-metas funciona como meta simple de siempre.
+ *
+ * Aportes y retiros viven en la misma tabla (goal_contributions): un
+ * retiro es un aporte con value negativo. Cada aporte puede además crear
+ * una transacción de tipo "provisión" si el usuario deja marcada la
+ * casilla de sincronización — eso mantiene el flujo de caja (Transacciones)
+ * y el ahorro (Metas) consistentes sin duplicar el registro a mano.
+ *
+ * Editar o borrar un aporte también actualiza/borra su transacción
+ * vinculada, si la tiene (ver saveContribEdit / removeContribution).
+ */
 import React, { useState, useMemo } from "react";
 import { Plus, Minus, Trash2, TrendingUp, ChevronDown, ChevronUp, Pencil, X, Check, FolderTree, Target } from "lucide-react";
 import { C } from "../theme.js";
 import { fmtCOP } from "../lib/helpers.js";
 import { cyclePeriodLabelSmart, shiftPeriod, periodForTransaction } from "../lib/payCycle.js";
 import { Card, SectionTitle, PeriodNav, Field, inputStyle, Btn, ProgressBar, Empty } from "../components/ui.jsx";
+import ContributionHistory from "../components/ContributionHistory.jsx";
 // Importamos updateTransaction y deleteTransaction
 import { addGoal, updateGoal, deleteGoal, addContribution, updateContribution, deleteContribution, addTransaction, updateTransaction, deleteTransaction } from "../lib/data.js";
 
@@ -391,48 +411,22 @@ export default function GoalsTab({ userId, goals, setGoals, contributions, setCo
                               </div>
 
                               <div style={{ marginTop: 10, borderTop: `1px solid ${C.line}`, paddingTop: 8 }}>
-                                <button onClick={() => setExpandedGoalId(isSubExpanded ? null : sub.id)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', fontSize: 11.5, color: C.inkSoft, fontWeight: 600, padding: 0 }}>
-                                  {isSubExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                                  {isSubExpanded ? "Ocultar historial" : "Ver historial de aportes y retiros"}
-                                </button>
-
-                                {isSubExpanded && (
-                                  <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                    {sub.subContribs.length === 0 ? (
-                                      <div style={{ fontSize: 11, color: C.inkFaint }}>No hay movimientos en esta sub-meta.</div>
-                                    ) : (
-                                      sub.subContribs.slice().sort((a, b) => b.period.localeCompare(a.period)).map(c => {
-                                        const isNegative = Number(c.value) < 0;
-                                        return (
-                                          <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: C.white, padding: '6px 10px', borderRadius: 6 }}>
-                                            {editingContribId === c.id ? (
-                                              <div style={{ display: 'flex', gap: 6, flex: 1, alignItems: 'center' }}>
-                                                <input type="number" style={{ ...inputStyle, padding: '4px 6px', fontSize: 12, flex: 1 }} value={editContribValue} onChange={(e) => setEditContribValue(e.target.value)} disabled={saving} />
-                                                <button onClick={() => saveContribEdit(c.id)} disabled={saving} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.sage }}><Check size={14} /></button>
-                                                <button onClick={() => setEditingContribId(null)} disabled={saving} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.inkFaint }}><X size={14} /></button>
-                                              </div>
-                                            ) : (
-                                              <>
-                                                <div>
-                                                  <div style={{ fontSize: 10.5, color: C.inkFaint }}>
-                                                    {cyclePeriodLabelSmart(c.period, payDay, incomeAnchors)} {isNegative ? "• (Retiro)" : "• (Aporte)"}
-                                                  </div>
-                                                  <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, fontWeight: 600, color: isNegative ? C.coral : C.ink }}>
-                                                    {isNegative ? `- ${fmtCOP(Math.abs(c.value))}` : `+ ${fmtCOP(c.value)}`}
-                                                  </div>
-                                                </div>
-                                                <div style={{ display: 'flex', gap: 8 }}>
-                                                  <button onClick={() => startEditContrib(c)} disabled={saving} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.inkFaint }}><Pencil size={12} /></button>
-                                                  <button onClick={() => removeContribution(c.id)} disabled={saving} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.coral }}><Trash2 size={12} /></button>
-                                                </div>
-                                              </>
-                                            )}
-                                          </div>
-                                        );
-                                      })
-                                    )}
-                                  </div>
-                                )}
+                                <ContributionHistory
+                                  contribs={sub.subContribs}
+                                  isExpanded={isSubExpanded}
+                                  onToggleExpand={() => setExpandedGoalId(isSubExpanded ? null : sub.id)}
+                                  payDay={payDay}
+                                  incomeAnchors={incomeAnchors}
+                                  editingContribId={editingContribId}
+                                  editContribValue={editContribValue}
+                                  setEditContribValue={setEditContribValue}
+                                  onStartEdit={startEditContrib}
+                                  onSaveEdit={saveContribEdit}
+                                  onCancelEdit={() => setEditingContribId(null)}
+                                  onRemove={removeContribution}
+                                  saving={saving}
+                                  compact
+                                />
                               </div>
                             </div>
                           );
@@ -444,50 +438,21 @@ export default function GoalsTab({ userId, goals, setGoals, contributions, setCo
 
                 {/* Historial de la Meta Principal */}
                 {!parent.hasSubGoals && (
-                  <div style={{ marginTop: 14, borderTop: `1px solid ${C.line}`, paddingTop: 10 }}>
-                    <button onClick={() => setExpandedGoalId(expandedGoalId === parent.id ? null : parent.id)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: C.inkSoft, fontWeight: 600, padding: 0 }}>
-                      {expandedGoalId === parent.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                      {expandedGoalId === parent.id ? "Ocultar historial" : "Ver historial de aportes y retiros"}
-                    </button>
-
-                    {expandedGoalId === parent.id && (
-                      <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {parent.goalContribs.length === 0 ? (
-                          <div style={{ fontSize: 12, color: C.inkFaint }}>No hay movimientos registrados.</div>
-                        ) : (
-                          parent.goalContribs.slice().sort((a, b) => b.period.localeCompare(a.period)).map(c => {
-                            const isNegative = Number(c.value) < 0;
-                            return (
-                              <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: C.paperAlt, padding: '8px 12px', borderRadius: 6 }}>
-                                {editingContribId === c.id ? (
-                                  <div style={{ display: 'flex', gap: 6, flex: 1, alignItems: 'center' }}>
-                                    <input type="number" style={{ ...inputStyle, padding: '4px 8px', fontSize: 13, flex: 1 }} value={editContribValue} onChange={(e) => setEditContribValue(e.target.value)} disabled={saving} />
-                                    <button onClick={() => saveContribEdit(c.id)} disabled={saving} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.sage }}><Check size={15} /></button>
-                                    <button onClick={() => setEditingContribId(null)} disabled={saving} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.inkFaint }}><X size={15} /></button>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <div>
-                                      <div style={{ fontSize: 11, color: C.inkFaint }}>
-                                        {cyclePeriodLabelSmart(c.period, payDay, incomeAnchors)} {isNegative ? "• (Retiro)" : "• (Aporte)"}
-                                      </div>
-                                      <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, fontWeight: 600, color: isNegative ? C.coral : C.ink }}>
-                                        {isNegative ? `- ${fmtCOP(Math.abs(c.value))}` : `+ ${fmtCOP(c.value)}`}
-                                      </div>
-                                    </div>
-                                    <div style={{ display: 'flex', gap: 10 }}>
-                                      <button onClick={() => startEditContrib(c)} disabled={saving} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.inkFaint }}><Pencil size={13} /></button>
-                                      <button onClick={() => removeContribution(c.id)} disabled={saving} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.coral }}><Trash2 size={13} /></button>
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  <ContributionHistory
+                    contribs={parent.goalContribs}
+                    isExpanded={expandedGoalId === parent.id}
+                    onToggleExpand={() => setExpandedGoalId(expandedGoalId === parent.id ? null : parent.id)}
+                    payDay={payDay}
+                    incomeAnchors={incomeAnchors}
+                    editingContribId={editingContribId}
+                    editContribValue={editContribValue}
+                    setEditContribValue={setEditContribValue}
+                    onStartEdit={startEditContrib}
+                    onSaveEdit={saveContribEdit}
+                    onCancelEdit={() => setEditingContribId(null)}
+                    onRemove={removeContribution}
+                    saving={saving}
+                  />
                 )}
               </Card>
             );

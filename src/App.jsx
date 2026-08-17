@@ -1,3 +1,22 @@
+/**
+ * App.jsx
+ * ─────────────────────────────────────────────────────────────────────────
+ * Componente raíz. Responsabilidades:
+ *   1. Autenticación: escucha la sesión de Supabase y muestra <Login/> si
+ *      no hay usuario.
+ *   2. Carga inicial: al haber sesión, trae categorías/transacciones/metas/
+ *      aportes/inversiones/presupuesto UNA vez y los guarda en estado local
+ *      (cada pestaña recibe su porción por props, nadie vuelve a pedirle
+ *      datos a Supabase salvo para escribir).
+ *   3. Ciclo de pago: calcula `payDay` (desde el presupuesto) e
+ *      `incomeAnchors` (fechas reales de ingresos) una sola vez aquí y los
+ *      pasa a quien los necesite — ver lib/payCycle.js para el porqué.
+ *   4. Navegación entre pestañas.
+ *
+ * Todas las mutaciones (agregar/editar/borrar) ocurren dentro de cada
+ * pestaña, que llama a lib/data.js y luego actualiza el estado que vive
+ * aquí a través de los `setX` que se le pasan por props.
+ */
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { LayoutDashboard, Receipt, Target, TrendingUp, Tags, SlidersHorizontal, Wallet, LogOut, Loader2 } from "lucide-react";
 import { supabase } from "./supabaseClient.js";

@@ -1,3 +1,11 @@
+/**
+ * supabaseClient.js
+ * ─────────────────────────────────────────────────────────────────────────
+ * Cliente único de Supabase, reexportado a toda la app. Usa la clave
+ * `anon` (pública, segura de exponer en el frontend) — el acceso real a
+ * los datos de cada usuario está controlado por Row Level Security en la
+ * base de datos (ver supabase/schema.sql), no por esta clave.
+ */
 import { createClient } from "@supabase/supabase-js";
 
 const url = import.meta.env.VITE_SUPABASE_URL;

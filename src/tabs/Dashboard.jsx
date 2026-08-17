@@ -1,3 +1,12 @@
+/**
+ * tabs/Dashboard.jsx ("Panorama")
+ * ─────────────────────────────────────────────────────────────────────────
+ * Vista de indicadores del ciclo activo: saldo, ingresos/gastos, presupuesto
+ * vs. real, gastos por categoría, tendencia anual, y dos indicadores de
+ * salud financiera (tasa de ahorro y meses de reserva cubiertos — ver los
+ * comentarios en línea de cada cálculo más abajo). Es de solo lectura: no
+ * escribe nada en Supabase, solo deriva todo de las props que le pasa App.jsx.
+ */
 import React, { useMemo } from "react";
 import { ArrowUpRight, ArrowDownRight, AlertTriangle, Clock } from "lucide-react";
 import {

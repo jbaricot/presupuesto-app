@@ -1,3 +1,22 @@
+/**
+ * tabs/Transactions.jsx
+ * ─────────────────────────────────────────────────────────────────────────
+ * Registro y listado de movimientos (ingresos, gastos fijos/variables,
+ * créditos, provisión/ahorro) del ciclo activo.
+ *
+ * Vínculo automático de provisión → Inversión/Metas:
+ * Cuando el tipo es "provisión", el formulario muestra un bloque extra para
+ * que el usuario elija a dónde va ese ahorro: a una plataforma de inversión
+ * (texto libre, ej. "Skandia") o a una meta existente. Al guardar, además
+ * de la transacción se crea el registro correspondiente en `investments` o
+ * `goal_contributions` (ver el bloque `if (form.type === "provision")`
+ * dentro de `submit`). Es una elección explícita del usuario en el momento
+ * de registrar — no hay coincidencia automática por nombre de categoría.
+ *
+ * Importación masiva: el botón "Importar" abre <ImportModal/>, que parsea
+ * extractos bancarios de Davivienda (.txt) y entrega filas ya normalizadas
+ * a `handleSaveBulk` para insertarlas todas de una vez.
+ */
 import React, { useState, useEffect, useMemo } from "react";
 import { Plus, X, Pencil, Trash2, Upload, Download } from "lucide-react";
 import { C, TX_TYPES, TX_TYPE_LABEL, PAYMENT_METHODS } from "../theme.js";

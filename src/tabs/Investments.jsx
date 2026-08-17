@@ -1,3 +1,17 @@
+/**
+ * tabs/Investments.jsx
+ * ─────────────────────────────────────────────────────────────────────────
+ * Seguimiento de inversiones por plataforma (Nubank, Skandia, etc.), con
+ * aporte/retiro/rendimiento/costo por registro. El patrimonio neto de cada
+ * fila es aporte - retiros + rendimientos - costos (ver `netRow`/`netPeriod`
+ * en los distintos useMemo). `reserva`/`renta_fija`/`renta_variable` son
+ * columnas heredadas que se siguen llenando (reserva = aporte) solo para
+ * que el indicador "meses de reserva" del Dashboard siga funcionando sin
+ * tener que tocarlo — ver el comentario en lib/data.js sobre esto.
+ *
+ * Igual que en Transacciones, aportar acá puede crear opcionalmente una
+ * transacción de provisión vinculada (casilla "syncToTx").
+ */
 import React, { useState, useMemo } from "react";
 import { Plus, X, Pencil, Trash2, PiggyBank, Building2, Download } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";

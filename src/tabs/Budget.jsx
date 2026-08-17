@@ -1,6 +1,15 @@
 /**
- * @file BudgetTab.jsx
- * @description Módulo de control de presupuesto por tipo de gasto.
+ * @file tabs/Budget.jsx
+ * @description Configuración de topes de gasto por rubro (fijos, variables,
+ * créditos, provisión) y del día de pago, con monitoreo en vivo del gasto
+ * real del ciclo activo contra esos topes.
+ *
+ * Nota de arquitectura: a diferencia de las demás pestañas, esta carga su
+ * propio presupuesto con fetchBudget en un useEffect en vez de recibirlo
+ * por props desde App.jsx — así que si cambias el presupuesto desde acá,
+ * el estado `budget` de App.jsx no se entera hasta la próxima carga de
+ * página. No afecta el uso normal, pero es bueno saberlo si el Panorama
+ * no refleja un cambio de tope al toque.
  */
 
 import React, { useState, useEffect } from "react";

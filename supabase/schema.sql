@@ -37,25 +37,34 @@ create table if not exists goals (
   name text not null,
   target_total numeric not null default 0,
   due_date date,
+  parent_goal_id uuid references goals(id) on delete cascade,  -- permite sub-metas dentro de una meta principal
   created_at timestamptz default now()
 );
 
--- ---------- APORTES A METAS ----------
+-- ---------- APORTES A METAS (y retiros: mismo registro con valor negativo) ----------
 create table if not exists goal_contributions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   goal_id uuid not null references goals(id) on delete cascade,
   period text not null,
   value numeric not null default 0,
+  transaction_id uuid references transactions(id) on delete set null,  -- si el aporte se sincronizó como transacción
   created_at timestamptz default now()
 );
 
--- ---------- INVERSIONES ----------
+-- ---------- INVERSIONES (seguimiento por plataforma: Nubank, Skandia, etc.) ----------
 create table if not exists investments (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   period text not null,
   date date,
+  platform text default 'General',
+  aporte numeric default 0,
+  retiros numeric default 0,
+  rendimientos numeric default 0,
+  costos numeric default 0,
+  transaction_id uuid references transactions(id) on delete set null,
+  -- columnas heredadas de la primera versión (se mantienen por compatibilidad con el dashboard)
   reserva numeric default 0,
   renta_fija numeric default 0,
   renta_variable numeric default 0,

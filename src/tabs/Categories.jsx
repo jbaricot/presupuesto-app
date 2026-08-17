@@ -1,3 +1,11 @@
+/**
+ * tabs/Categories.jsx
+ * ─────────────────────────────────────────────────────────────────────────
+ * CRUD simple de categorías. Su `name` es lo que se usa para filtrar/
+ * agrupar gastos en Transacciones y Panorama, y también lo que compara el
+ * vínculo de metas (una categoría llamada igual que una meta no auto-liga
+ * nada — el vínculo en esta versión es manual, ver tabs/Transactions.jsx).
+ */
 import React, { useState } from "react";
 import { Plus, X, Pencil, Trash2 } from "lucide-react";
 import { C } from "../theme.js";

@@ -1,3 +1,11 @@
+/**
+ * components/Login.jsx
+ * ─────────────────────────────────────────────────────────────────────────
+ * Pantalla de acceso con dos métodos, alternables con las pestañas de
+ * arriba: enlace mágico por correo (signInWithOtp) o correo+contraseña
+ * (signInWithPassword, con signUp automático si el usuario no existe).
+ * No recibe props: obtiene todo de supabaseClient.js directamente.
+ */
 import React, { useState } from "react";
 import { Wallet, Mail, Lock, Loader2 } from "lucide-react";
 import { C, FONTS } from "../theme.js";

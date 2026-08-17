@@ -1,3 +1,12 @@
+/**
+ * theme.js
+ * ─────────────────────────────────────────────────────────────────────────
+ * Todo lo visual/constante que se reutiliza en más de un archivo vive acá:
+ * paleta de colores (C), tipografías (FONTS, con las clases responsive de
+ * @media también incluidas), colores de gráficas, tipos de transacción,
+ * métodos de pago y categorías/presupuesto por defecto para usuarios nuevos.
+ * No hay lógica aquí — solo datos. La lógica de negocio va en lib/.
+ */
 export const C = {
   paper: "#EDEFE7",
   paperAlt: "#E2E5DA",

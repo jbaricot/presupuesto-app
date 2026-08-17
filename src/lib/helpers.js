@@ -1,3 +1,9 @@
+/**
+ * lib/helpers.js
+ * ─────────────────────────────────────────────────────────────────────────
+ * Formateo puro (moneda, fechas) sin ninguna dependencia de React ni de
+ * Supabase. Todo lo relacionado a ciclos de pago vive en payCycle.js, no acá.
+ */
 import { MONTHS_ES } from "../theme.js";
 
 export const fmtCOP = (v) =>

@@ -1,3 +1,17 @@
+/**
+ * components/ImportModal.jsx
+ * ─────────────────────────────────────────────────────────────────────────
+ * Importación masiva de movimientos desde un extracto de texto (.txt) de
+ * Davivienda. Todo el parseo ocurre en el navegador (nada se sube a
+ * ningún servidor): se lee el archivo, se extraen filas con una regex
+ * hecha a la medida del formato de ese banco, y se muestran editables
+ * antes de guardar. `onSaveBulk` (que recibe TransactionsTab) es quien
+ * realmente inserta cada fila en Supabase, uno por uno o en lote.
+ *
+ * Si el usuario cambia de banco, la función `daviviendaRegex` es el único
+ * lugar que habría que adaptar — el resto del componente es agnóstico al
+ * formato de origen.
+ */
 import React, { useState, useRef } from "react";
 import { X, Check, Trash2, Zap, FileText } from "lucide-react";
 import { C, TX_TYPES } from "../theme.js";

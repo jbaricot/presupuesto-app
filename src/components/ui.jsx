@@ -1,3 +1,11 @@
+/**
+ * components/ui.jsx
+ * ─────────────────────────────────────────────────────────────────────────
+ * Piezas de interfaz reutilizadas por varias pestañas: Card, botones,
+ * campos de formulario, barra de progreso, el "sello" circular de saldo,
+ * y el navegador de ciclo de pago (PeriodNav). Nada aquí sabe de Supabase
+ * ni de reglas de negocio — solo reciben props y se dibujan.
+ */
 import React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { C } from "../theme.js";
