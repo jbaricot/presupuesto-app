@@ -1,7 +1,3 @@
-Aquí tienes una versión actualizada y completa del **`README.md`** para tu repositorio de Git, integrando todas las nuevas capacidades que hemos construido: los ciclos inteligentes, las metas jerárquicas con sub-metas, el control detallado de inversiones por plataforma con rendimientos/costos, la sincronización bidireccional de transacciones y los nuevos KPIs financieros.
-
----
-
 # Mi Libro de Cuentas
 
 App avanzada de presupuesto personal: transacciones, metas jerárquicas (bolsillos/sinking funds), control detallado de inversiones y ahorros por plataforma, presupuesto, indicadores de rendimiento en tiempo real y base de datos propia en Supabase.
@@ -18,11 +14,10 @@ App avanzada de presupuesto personal: transacciones, metas jerárquicas (bolsill
 
 1. Ve a [https://supabase.com](https://supabase.com) → crea una cuenta → **New project**.
 
-
 2. Elige nombre, contraseña de base de datos (guárdala) y región (idealmente cercana a Colombia, ej. `us-east-1`).
 
-
 3. Cuando el proyecto esté listo, ve a **SQL Editor → New query**, pega el contenido del esquema base y ejecuta las siguientes consultas para soportar sub-metas y el desglose de inversiones:
+
 ```sql
 -- Esquema para sub-metas jerárquicas
 ALTER TABLE goals ADD COLUMN IF NOT EXISTS parent_goal_id UUID REFERENCES goals(id) ON DELETE CASCADE;
@@ -36,17 +31,12 @@ ALTER TABLE investments ADD COLUMN IF NOT EXISTS costos NUMERIC DEFAULT 0;
 
 ```
 
+1. Ve a **Authentication → Providers → Email** y confirma que esté habilitado. Puedes usar acceso por enlace (magic link) o contraseña.
 
-4. Ve a **Authentication → Providers → Email** y confirma que esté habilitado. Puedes usar acceso por enlace (magic link) o contraseña.
-
-
-5. Ve a **Project Settings → API** y copia:
-
+2. Ve a **Project Settings → API** y copia:
 
 * `Project URL`
 * `anon public` key
-
-
 
 ---
 
@@ -81,18 +71,14 @@ Abre `http://localhost:5173` en tu navegador.
 
 * **Ciclos de Pago Dinámicos e Inteligentes:** Define tu día de pago (ej. 26 de cada mes) para que los períodos se ajusten al flujo real de tu dinero, o usa anclas automáticas basadas en las fechas reales de tus ingresos.
 
-
 * **Metas Jerárquicas (Bolsillos / Sinking Funds):** Estructura tus finanzas agrupando sub-metas (ej. *SOAT*, *Seguro Auto*, *Predial*) dentro de macro-metas (ej. *Gastos Anuales*), con cálculo automático de totales y barras de progreso globales.
 * **Inversiones y Ahorros Multientidad:** Registra el estado de tu dinero indicando la plataforma o entidad (Nubank, Skandia, etc.) y desglosando con precisión **Aportes, Retiros, Rendimientos y Costos**.
 * **Sincronización Bidireccional:** Los movimientos de ahorro o aportes a metas pueden reflejarse automáticamente como transacciones de provisión en tu flujo de caja con un solo clic.
 * **KPIs Financieros Avanzados:**
 * *Velocidad de Gasto Operativo (Burn Rate / Pacing):* Monitoreo proactivo del avance de los días del ciclo frente al consumo real del presupuesto operativo.
 * *Patrimonio Neto:* Gráfica de área que consolida la evolución histórica del efectivo acumulado y las inversiones.
-
-
 * **Seguridad Robusta:** Cada tabla cuenta con *Row Level Security* (RLS) habilitado en Supabase, garantizando que cada usuario autenticado mantenga sus datos estrictamente privados y aislados.
-
-
+* los ciclos inteligentes, las metas jerárquicas con sub-metas, el control detallado de inversiones por plataforma con rendimientos/costos, la sincronización bidireccional de transacciones y los nuevos KPIs financieros.
 
 ---
 
@@ -100,18 +86,11 @@ Abre `http://localhost:5173` en tu navegador.
 
 1. Sube este proyecto a un repositorio de GitHub.
 
-
 2. Ve a [https://vercel.com](https://vercel.com) → **Add New → Project** → conecta tu repositorio.
 
-
 3. En **Environment Variables**, agrega las variables de entorno:
-
 
 * `VITE_SUPABASE_URL`
 * `VITE_SUPABASE_ANON_KEY`
 
-
-4. Despliega. Vercel te asignará una URL pública.
-
-
-5. En Supabase, ve a **Authentication → URL Configuration** y agrega tu URL de Vercel en **Site URL** y **Redirect URLs**.
+1. Despliega. Vercel te asignará una URL pública.
