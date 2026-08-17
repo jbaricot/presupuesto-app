@@ -138,3 +138,13 @@ export async function upsertBudget(userId, row) {
   if (error) throw error;
   return data;
 }
+export async function updateGoal(id, { name, total, dueDate, parentGoalId }) {
+  const { data, error } = await supabase.from("goals").update({ 
+    name, 
+    target_total: total, 
+    due_date: dueDate || null,
+    parent_goal_id: parentGoalId || null 
+  }).eq("id", id).select().single();
+  if (error) throw error;
+  return data;
+}
