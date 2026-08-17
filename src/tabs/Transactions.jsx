@@ -5,6 +5,8 @@ import { fmtCOP, fmtCompact } from "../lib/helpers.js";
 import { periodForTransaction, cyclePeriodLabelSmart } from "../lib/payCycle.js";
 import { Card, SectionTitle, PeriodNav, Field, inputStyle, Btn, Empty } from "../components/ui.jsx";
 import { addTransaction, updateTransaction, deleteTransaction, addContribution, addInvestment } from "../lib/data.js";
+import { Upload } from "lucide-react";
+import ImportModal from "../components/ImportModal.jsx";
 
 const SORT_OPTIONS = [
   { id: "date_desc", label: "Fecha (más reciente)" },
@@ -30,9 +32,9 @@ function emptyTx(period) {
   return { period, date: "", name: "", type: "variable", category: "", payment_method: "Débito", value: "", paid: false, allocation: "none", platform: "" };
 }
 
-export default function TransactionsTab({ 
+export default function TransactionsTab({
   userId, transactions, setTransactions, categories, period, setPeriod, payDay, incomeAnchors,
-  goals, contributions, setContributions, investments, setInvestments 
+  goals, contributions, setContributions, investments, setInvestments
 }) {
   const [form, setForm] = useState(emptyTx(period));
   const [editingId, setEditingId] = useState(null);
@@ -40,6 +42,7 @@ export default function TransactionsTab({
   const [filterCategory, setFilterCategory] = useState("todos"); // <-- NUEVO: Estado para filtrar por categoría
   const [sortBy, setSortBy] = useState("date_desc");
   const [saving, setSaving] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   useEffect(() => { setForm(emptyTx(period)); setEditingId(null); }, [period]);
 
@@ -62,11 +65,11 @@ export default function TransactionsTab({
   const submit = async (e) => {
     e.preventDefault();
     if (!form.name || !form.value) return;
-    
+
     setSaving(true);
     try {
       const derivedPeriod = form.date ? periodForTransaction(form.type, form.date, payDay, incomeAnchors) : period;
-      
+
       const payload = { ...form, period: derivedPeriod, value: Number(form.value), date: form.date || null };
       delete payload.allocation;
       delete payload.platform;
@@ -80,19 +83,19 @@ export default function TransactionsTab({
 
         if (form.type === "provision") {
           const val = Number(form.value);
-          
+
           if (form.allocation && form.allocation.startsWith("goal_")) {
             const goalId = form.allocation.replace("goal_", "");
             const newContrib = await addContribution(userId, { goalId, period: derivedPeriod, value: val, transactionId: created.id });
             setContributions([...contributions, newContrib]);
-          } 
+          }
           else if (form.allocation && form.allocation.startsWith("inv_")) {
             const invType = form.allocation.replace("inv_", "");
             const newInv = await addInvestment(userId, {
-              period: derivedPeriod, 
+              period: derivedPeriod,
               date: form.date || null,
-              reserva: invType === "reserva" ? val : 0, 
-              renta_fija: invType === "renta_fija" ? val : 0, 
+              reserva: invType === "reserva" ? val : 0,
+              renta_fija: invType === "renta_fija" ? val : 0,
               renta_variable: invType === "renta_variable" ? val : 0
             });
             setInvestments([...investments, newInv]);
@@ -136,19 +139,62 @@ export default function TransactionsTab({
     }
   };
 
+  const handleSaveBulk = async (parsedRows) => {
+    try {
+      const newTransactions = [];
+      for (const row of parsedRows) {
+        // Asignamos el periodo automáticamente según la fecha del CSV
+        const derivedPeriod = row.date ? periodForTransaction(row.type, row.date, payDay, incomeAnchors) : period;
+
+        const payload = {
+          user_id: userId,
+          name: row.name,
+          type: row.type,
+          category: row.category,
+          payment_method: row.payment_method,
+          value: Number(row.value),
+          date: row.date,
+          period: derivedPeriod,
+          paid: true
+        };
+
+        const created = await addTransaction(userId, payload);
+        newTransactions.push(created);
+      }
+
+      // Actualizamos el estado global
+      setTransactions(prev => [...newTransactions, ...prev]);
+      alert(`¡Éxito! Se importaron ${newTransactions.length} movimientos.`);
+    } catch (error) {
+      throw error;
+    }
+  };
   return (
     <div>
       <SectionTitle eyebrow="Registro" title="Transacciones" right={<PeriodNav period={period} setPeriod={setPeriod} payDay={payDay} incomeAnchors={incomeAnchors} />} />
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
+        <Btn variant="ghost" onClick={() => setIsImportModalOpen(true)}>
+          <Upload size={14} /> Importar CSV
+        </Btn>
+      </div>
+
+      <ImportModal 
+        isOpen={isImportModalOpen} 
+        onClose={() => setIsImportModalOpen(false)} 
+        categories={categories}
+        onSaveBulk={handleSaveBulk}
+      />
       <div className="mlc-grid-form-l">
         <Card style={{ padding: 18 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3, marginBottom: 12 }}>
             {editingId ? "EDITAR MOVIMIENTO" : "NUEVO MOVIMIENTO"}
           </div>
+          
           <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <Field label="Nombre">
               <input style={inputStyle} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ej. Ahorro mensual" required disabled={saving} />
             </Field>
-            
+
             <Field label="Tipo">
               <select style={inputStyle} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} disabled={saving}>
                 {TX_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
@@ -158,14 +204,14 @@ export default function TransactionsTab({
             {form.type === "provision" && (
               <div style={{ background: C.paperAlt, padding: 10, borderRadius: 8, display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ fontSize: 11.5, fontWeight: 700, color: C.inkSoft }}>VINCULACIÓN AUTOMÁTICA DE AHORRO</div>
-                
+
                 <Field label="Registrar en Inversiones (Escribe la Plataforma / Entidad)">
-                  <input 
-                    style={inputStyle} 
-                    value={form.platform} 
-                    onChange={(e) => setForm({ ...form, platform: e.target.value })} 
-                    placeholder="Ej. Nubank, Skandia (Opcional)" 
-                    disabled={saving || editingId} 
+                  <input
+                    style={inputStyle}
+                    value={form.platform}
+                    onChange={(e) => setForm({ ...form, platform: e.target.value })}
+                    placeholder="Ej. Nubank, Skandia (Opcional)"
+                    disabled={saving || editingId}
                   />
                 </Field>
 
@@ -182,7 +228,7 @@ export default function TransactionsTab({
                     )}
                   </select>
                 </Field>
-                {editingId && <span style={{fontSize: 10, color: C.inkFaint}}>* La vinculación automática solo aplica al crear movimientos nuevos.</span>}
+                {editingId && <span style={{ fontSize: 10, color: C.inkFaint }}>* La vinculación automática solo aplica al crear movimientos nuevos.</span>}
               </div>
             )}
 
@@ -194,40 +240,40 @@ export default function TransactionsTab({
                 </select>
               </Field>
             )}
-            
+
             <Field label="Método de pago">
               <select style={inputStyle} value={form.payment_method} onChange={(e) => setForm({ ...form, payment_method: e.target.value })} disabled={saving}>
                 {PAYMENT_METHODS.map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
             </Field>
-            
+
             <Field label="Fecha">
               <input type="date" style={inputStyle} value={form.date || ""} onChange={(e) => setForm({ ...form, date: e.target.value })} disabled={saving} />
             </Field>
-            
+
             {form.date && (
               <div style={{ fontSize: 11.5, color: C.inkFaint, marginTop: -4 }}>
                 Se registrará en el ciclo: <strong style={{ color: C.inkSoft }}>{cyclePeriodLabelSmart(periodForTransaction(form.type, form.date, payDay, incomeAnchors), payDay, incomeAnchors)}</strong>
               </div>
             )}
-            
+
             <Field label="Valor (COP)">
               <input type="number" min="0" style={inputStyle} value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} placeholder="0" required disabled={saving} />
             </Field>
-            
+
             {form.type === "fijo" && (
               <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.inkSoft, fontWeight: 600 }}>
                 <input type="checkbox" checked={form.paid} onChange={(e) => setForm({ ...form, paid: e.target.checked })} disabled={saving} /> ¿Pagado?
               </label>
             )}
-            
+
             <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
               <Btn type="submit" disabled={saving}><Plus size={14} /> {saving ? "Guardando..." : (editingId ? "Guardar cambios" : "Agregar")}</Btn>
               {editingId && <Btn type="button" variant="ghost" onClick={() => { setForm(emptyTx(period)); setEditingId(null); }} disabled={saving}><X size={14} /> Cancelar</Btn>}
             </div>
           </form>
         </Card>
-        
+
         <div>
           <div className="mlc-grid-metrics" style={{ marginBottom: 14 }}>
             {TX_TYPES.map((t) => (
@@ -237,7 +283,7 @@ export default function TransactionsTab({
               </Card>
             ))}
           </div>
-          
+
           {/* BARRA DE FILTROS Y ORDENAMIENTO */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3 }}>{cyclePeriodLabelSmart(period, payDay, incomeAnchors).toUpperCase()}</div>
@@ -260,7 +306,7 @@ export default function TransactionsTab({
               </select>
             </div>
           </div>
-          
+
           <Card style={{ overflow: "hidden" }}>
             {periodTx.length === 0 ? <Empty text="No hay movimientos para este filtro." /> : (
               <div>
