@@ -50,6 +50,27 @@ export default function Dashboard({ transactions, goals, contributions, investme
     });
   }, [goals, contributions]);
 
+  /** Tasa de ahorro: % del ingreso del ciclo que fue a provisión/ahorro */
+  const savingsRate = totals.ingresos > 0 ? (totals.provision / totals.ingresos) * 100 : null;
+
+  /** Meses de reserva cubiertos: reserva de oxígeno actual ÷ promedio de gastos fijos recientes */
+  const monthsOfReserve = useMemo(() => {
+    if (investments.length === 0) return null;
+    const latestInv = investments.slice().sort((a, b) => b.period.localeCompare(a.period))[0];
+    const reserva = Number(latestInv.reserva || 0);
+    const byPeriod = {};
+    transactions.filter((t) => t.type === "fijo").forEach((t) => {
+      byPeriod[t.period] = (byPeriod[t.period] || 0) + Number(t.value || 0);
+    });
+    const recentPeriods = Object.keys(byPeriod).sort().slice(-3);
+    if (recentPeriods.length === 0) return null;
+    const avgFijos = recentPeriods.reduce((a, p) => a + byPeriod[p], 0) / recentPeriods.length;
+    if (avgFijos <= 0) return null;
+    return { reserva, avgFijos, months: reserva / avgFijos };
+  }, [investments, transactions]);
+
+  const rateColor = (v, good, ok) => (v >= good ? C.sage : v >= ok ? C.gold : C.coral);
+
   const budgetRows = [
     { key: "fijos", label: "Gastos fijos", actual: totals.fijos, target: budget.fijos },
     { key: "variables", label: "Gastos variables", actual: totals.variables, target: budget.variables },
@@ -103,6 +124,37 @@ export default function Dashboard({ transactions, goals, contributions, investme
             </div>
           </Card>
         </div>
+      </div>
+
+      <div className="mlc-grid-2" style={{ marginBottom: 20 }}>
+        <Card style={{ padding: "16px 18px" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3, marginBottom: 4 }}>TASA DE AHORRO</div>
+          {savingsRate === null ? (
+            <div style={{ fontSize: 12.5, color: C.inkFaint, marginTop: 8 }}>Registra ingresos este ciclo para calcularla.</div>
+          ) : (
+            <>
+              <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 28, fontWeight: 600, color: rateColor(savingsRate, 20, 10) }}>
+                {savingsRate.toFixed(1)}%
+              </div>
+              <div style={{ fontSize: 12, color: C.inkFaint, marginTop: 2 }}>de tu ingreso fue a provisión/ahorro este ciclo</div>
+            </>
+          )}
+        </Card>
+        <Card style={{ padding: "16px 18px" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3, marginBottom: 4 }}>MESES DE RESERVA CUBIERTOS</div>
+          {monthsOfReserve === null ? (
+            <div style={{ fontSize: 12.5, color: C.inkFaint, marginTop: 8 }}>Registra tu reserva de oxígeno e histórico de gastos fijos para calcularlo.</div>
+          ) : (
+            <>
+              <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 28, fontWeight: 600, color: rateColor(monthsOfReserve.months, 3, 1) }}>
+                {monthsOfReserve.months.toFixed(1)}
+              </div>
+              <div style={{ fontSize: 12, color: C.inkFaint, marginTop: 2 }}>
+                con {fmtCompact(monthsOfReserve.reserva)} de reserva, a un promedio de {fmtCompact(monthsOfReserve.avgFijos)} en fijos por ciclo
+              </div>
+            </>
+          )}
+        </Card>
       </div>
 
       <div className="mlc-grid-2" style={{ marginBottom: 20 }}>

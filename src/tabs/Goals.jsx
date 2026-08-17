@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, TrendingUp } from "lucide-react";
 import { C } from "../theme.js";
 import { fmtCOP } from "../lib/helpers.js";
-import { cyclePeriodLabelSmart } from "../lib/payCycle.js";
+import { cyclePeriodLabelSmart, shiftPeriod } from "../lib/payCycle.js";
 import { Card, SectionTitle, Field, inputStyle, Btn, ProgressBar, Empty } from "../components/ui.jsx";
 import { addGoal, deleteGoal, addContribution } from "../lib/data.js";
 
@@ -12,10 +12,24 @@ export default function GoalsTab({ userId, goals, setGoals, contributions, setCo
 
   const goalsWithProgress = useMemo(() => {
     return goals.map((g) => {
-      const saved = contributions.filter((c) => c.goal_id === g.id).reduce((a, c) => a + Number(c.value || 0), 0);
-      return { ...g, saved, pct: g.target_total > 0 ? (saved / g.target_total) * 100 : 0 };
+      const goalContribs = contributions.filter((c) => c.goal_id === g.id);
+      const saved = goalContribs.reduce((a, c) => a + Number(c.value || 0), 0);
+      const pct = g.target_total > 0 ? (saved / g.target_total) * 100 : 0;
+
+      const periodsWithContrib = Array.from(new Set(goalContribs.map((c) => c.period)));
+      const avgPerPeriod = periodsWithContrib.length > 0 ? saved / periodsWithContrib.length : 0;
+      const remaining = g.target_total - saved;
+
+      let eta = null;
+      if (remaining <= 0) eta = { done: true };
+      else if (avgPerPeriod > 0) {
+        const cycles = Math.ceil(remaining / avgPerPeriod);
+        const projectedPeriod = shiftPeriod(period, cycles);
+        eta = { done: false, cycles, label: cyclePeriodLabelSmart(projectedPeriod, payDay, incomeAnchors) };
+      }
+      return { ...g, saved, pct, eta };
     });
-  }, [goals, contributions]);
+  }, [goals, contributions, period, payDay, incomeAnchors]);
 
   const submitGoal = async (e) => {
     e.preventDefault();
@@ -68,6 +82,14 @@ export default function GoalsTab({ userId, goals, setGoals, contributions, setCo
                 <button onClick={() => removeGoal(g.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.coral }}><Trash2 size={15} /></button>
               </div>
               <div style={{ marginTop: 10 }}><ProgressBar pct={g.pct} color={C.gold} /></div>
+              {g.eta && (
+                <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 8, fontSize: 12, color: g.eta.done ? C.sage : C.inkSoft, fontWeight: 600 }}>
+                  <TrendingUp size={13} />
+                  {g.eta.done
+                    ? "¡Meta alcanzada!"
+                    : `Al ritmo actual, la alcanzas en ~${g.eta.cycles} ciclo${g.eta.cycles !== 1 ? "s" : ""} (${g.eta.label})`}
+                </div>
+              )}
               <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center" }}>
                 <input type="number" min="0" placeholder={`Aporte para ${cyclePeriodLabelSmart(period, payDay, incomeAnchors)}`} style={{ ...inputStyle, flex: 1 }}
                   value={contribValues[g.id] || ""} onChange={(e) => setContribValues({ ...contribValues, [g.id]: e.target.value })} />

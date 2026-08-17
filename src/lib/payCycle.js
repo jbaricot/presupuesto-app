@@ -82,10 +82,30 @@ export function periodForDateSmart(dateStr, payDay, anchors) {
     else break;
   }
   if (chosen) {
-    const [y, m] = chosen.split("-");
-    return `${y}-${m}`;
+    const gapDays = (new Date(d + "T00:00:00") - new Date(chosen + "T00:00:00")) / 86400000;
+    // Si la ancla más cercana quedó demasiado lejos (más de ~40 días), probablemente
+    // faltan ingresos registrados entre medio: no la uses, cae al día nominal.
+    if (gapDays <= 40) {
+      const [y, m] = chosen.split("-");
+      return `${y}-${m}`;
+    }
   }
-  return periodForDate(dateStr, payDay); // sin ancla real todavía: usar el día nominal
+  return periodForDate(dateStr, payDay); // sin ancla reciente: usar el día nominal
+}
+
+/**
+ * Determina el período de una transacción según su tipo:
+ * - Si es un "ingreso", su propia fecha DEFINE el inicio de un ciclo nuevo
+ *   (no hay que buscar el ancla anterior, sería mezclarlo con el ciclo previo).
+ * - Para cualquier otro tipo (gasto fijo, variable, crédito, provisión), se usa
+ *   la ancla de ingreso más cercana hacia atrás (periodForDateSmart).
+ */
+export function periodForTransaction(type, dateStr, payDay, anchors) {
+  if (type === "ingreso") {
+    const d = dateStr || new Date().toISOString().slice(0, 10);
+    return d.slice(0, 7);
+  }
+  return periodForDateSmart(dateStr, payDay, anchors);
 }
 
 export function cycleRangeSmart(period, payDay, anchors) {

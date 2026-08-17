@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Plus, X, Pencil, Trash2, ArrowUpDown } from "lucide-react";
 import { C, TX_TYPES, TX_TYPE_LABEL, PAYMENT_METHODS } from "../theme.js";
 import { fmtCOP, fmtCompact } from "../lib/helpers.js";
-import { periodForDateSmart, cyclePeriodLabelSmart } from "../lib/payCycle.js";
+import { periodForTransaction, cyclePeriodLabelSmart } from "../lib/payCycle.js";
 import { Card, SectionTitle, PeriodNav, Field, inputStyle, Btn, Empty } from "../components/ui.jsx";
 import { addTransaction, updateTransaction, deleteTransaction } from "../lib/data.js";
 
@@ -56,7 +56,7 @@ export default function TransactionsTab({ userId, transactions, setTransactions,
     try {
       // Si hay fecha, el ciclo de pago al que pertenece se calcula automáticamente;
       // si no hay fecha, se usa el ciclo que estás viendo en pantalla.
-      const derivedPeriod = form.date ? periodForDateSmart(form.date, payDay, incomeAnchors) : period;
+      const derivedPeriod = form.date ? periodForTransaction(form.type, form.date, payDay, incomeAnchors) : period;
       const payload = { ...form, period: derivedPeriod, value: Number(form.value), date: form.date || null };
       if (editingId) {
         const updated = await updateTransaction(editingId, payload);
@@ -117,7 +117,7 @@ export default function TransactionsTab({ userId, transactions, setTransactions,
             </Field>
             {form.date && (
               <div style={{ fontSize: 11.5, color: C.inkFaint, marginTop: -4 }}>
-                Se registrará en el ciclo: <strong style={{ color: C.inkSoft }}>{cyclePeriodLabelSmart(periodForDateSmart(form.date, payDay, incomeAnchors), payDay, incomeAnchors)}</strong>
+                Se registrará en el ciclo: <strong style={{ color: C.inkSoft }}>{cyclePeriodLabelSmart(periodForTransaction(form.type, form.date, payDay, incomeAnchors), payDay, incomeAnchors)}</strong>
               </div>
             )}
             <Field label="Valor (COP)">
