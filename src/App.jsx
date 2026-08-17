@@ -146,14 +146,14 @@ export default function App() {
               <Dashboard transactions={transactions} goals={goals} contributions={contributions} investments={investments} budget={budget} period={period} setPeriod={setPeriod} payDay={payDay} incomeAnchors={incomeAnchors} />
             )}
             {tab === "transacciones" && (
-              <TransactionsTab 
-                userId={userId} 
-                transactions={transactions} 
-                setTransactions={setTransactions} 
-                categories={categories} 
-                period={period} 
-                setPeriod={setPeriod} 
-                payDay={payDay} 
+              <TransactionsTab
+                userId={userId}
+                transactions={transactions}
+                setTransactions={setTransactions}
+                categories={categories}
+                period={period}
+                setPeriod={setPeriod}
+                payDay={payDay}
                 incomeAnchors={incomeAnchors}
                 goals={goals}
                 contributions={contributions}
@@ -164,26 +164,26 @@ export default function App() {
               />
             )}
             {tab === "metas" && (
-              <GoalsTab 
-                userId={userId} 
-                goals={goals} 
-                setGoals={setGoals} 
-                contributions={contributions} 
-                setContributions={setContributions} 
-                period={period} 
+              <GoalsTab
+                userId={userId}
+                goals={goals}
+                setGoals={setGoals}
+                contributions={contributions}
+                setContributions={setContributions}
+                period={period}
                 setPeriod={setPeriod} // <-- Añadido
-                payDay={payDay} 
+                payDay={payDay}
                 incomeAnchors={incomeAnchors}
                 transactions={transactions}
                 setTransactions={setTransactions}
               />
             )}
             {tab === "inversiones" && (
-              <InvestmentsTab 
-                userId={userId} 
-                investments={investments} 
-                setInvestments={setInvestments} 
-                payDay={payDay} 
+              <InvestmentsTab
+                userId={userId}
+                investments={investments}
+                setInvestments={setInvestments}
+                payDay={payDay}
                 incomeAnchors={incomeAnchors}
                 period={period} // <-- Añadido
                 setPeriod={setPeriod} // <-- Añadido
@@ -195,7 +195,15 @@ export default function App() {
               <CategoriesTab userId={userId} categories={categories} setCategories={setCategories} />
             )}
             {tab === "presupuesto" && (
-              <BudgetTab userId={userId} budget={budget} setBudget={setBudget} />
+              <BudgetTab
+                userId={userId}
+                categories={categories}
+                transactions={transactions}
+                period={period}
+                setPeriod={setPeriod}
+                payDay={payDay}
+                incomeAnchors={incomeAnchors}
+              />
             )}
           </div>
         </div>
