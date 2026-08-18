@@ -15,10 +15,10 @@
  *
  * Todas las mutaciones (agregar/editar/borrar) ocurren dentro de cada
  * pestaña, que llama a lib/data.js y luego actualiza el estado que vive
- * aquí a través de los `setX` que se le pasan por props.
+ *   5. Gestión de cuenta (Cerrar sesión, Cambiar clave).
  */
-import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { LayoutDashboard, Receipt, Target, TrendingUp, Tags, SlidersHorizontal, Wallet, LogOut, Loader2 } from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { LayoutDashboard, Receipt, Target, TrendingUp, Tags, SlidersHorizontal, Wallet, LogOut, Key, Loader2, X, Check } from "lucide-react";
 import { supabase } from "./supabaseClient.js";
 import { C, FONTS, DEFAULT_CATEGORIES, DEFAULT_BUDGET } from "./theme.js";
 import { currentPeriod, getIncomeAnchors } from "./lib/payCycle.js";
@@ -29,6 +29,7 @@ import GoalsTab from "./tabs/Goals.jsx";
 import InvestmentsTab from "./tabs/Investments.jsx";
 import CategoriesTab from "./tabs/Categories.jsx";
 import BudgetTab from "./tabs/Budget.jsx";
+import { Card, inputStyle, Btn, Field } from "./components/ui.jsx";
 import {
   fetchCategories, seedDefaultCategories, fetchTransactions, fetchGoals,
   fetchContributions, fetchInvestments, fetchBudget,
@@ -50,12 +51,18 @@ export default function App() {
   const [period, setPeriod] = useState(currentPeriod(1));
   const [periodInitialized, setPeriodInitialized] = useState(false);
 
+  // Estados globales de datos
   const [categories, setCategories] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [goals, setGoals] = useState([]);
   const [contributions, setContributions] = useState([]);
   const [investments, setInvestments] = useState([]);
   const [budget, setBudget] = useState(DEFAULT_BUDGET);
+
+  // Estados para el Modal de Cambio de Clave
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [updatingPassword, setUpdatingPassword] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -95,6 +102,26 @@ export default function App() {
 
   const signOut = () => supabase.auth.signOut();
 
+  // Función para procesar el cambio de contraseña
+  const handleUpdatePassword = async (e) => {
+    e.preventDefault();
+    if (newPassword.length < 6) {
+      alert("La contraseña debe tener al menos 6 caracteres.");
+      return;
+    }
+    setUpdatingPassword(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setUpdatingPassword(false);
+
+    if (error) {
+      alert("Error al actualizar la clave: " + error.message);
+    } else {
+      alert("¡Tu contraseña ha sido actualizada con éxito!");
+      setIsPasswordModalOpen(false);
+      setNewPassword("");
+    }
+  };
+
   if (session === undefined) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: C.paperAlt, fontFamily: "'Inter',sans-serif", color: C.inkSoft }}>
@@ -123,6 +150,48 @@ export default function App() {
     <div style={{ minHeight: "100vh", background: C.paperAlt, fontFamily: "'Inter',sans-serif" }}>
       <style>{FONTS}</style>
       <div className="mlc-shell" style={{ maxWidth: 1100, margin: "0 auto", padding: "26px 20px 60px" }}>
+
+        {/* Modal Cambio de Clave */}
+        {isPasswordModalOpen && (
+          <div style={{
+            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.6)", zIndex: 9999,
+            display: "flex", justifyContent: "center", alignItems: "center", padding: 20,
+            backdropFilter: "blur(2px)"
+          }}>
+            <Card style={{ width: "100%", maxWidth: 360, padding: 24 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: C.ink, display: "flex", alignItems: "center", gap: 6 }}>
+                  <Key size={18} color={C.gold} /> Cambiar Contraseña
+                </div>
+                <button onClick={() => setIsPasswordModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: C.inkFaint }}>
+                  <X size={20} />
+                </button>
+              </div>
+              <form onSubmit={handleUpdatePassword} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <Field label="Nueva Contraseña">
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
+                    placeholder="Mínimo 6 caracteres"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    disabled={updatingPassword}
+                  />
+                </Field>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
+                  <Btn variant="ghost" onClick={() => setIsPasswordModalOpen(false)} disabled={updatingPassword}>Cancelar</Btn>
+                  <Btn type="submit" disabled={updatingPassword}>
+                    {updatingPassword ? "Actualizando..." : <><Check size={14} /> Guardar</>}
+                  </Btn>
+                </div>
+              </form>
+            </Card>
+          </div>
+        )}
+
         <div style={{ background: C.paper, borderRadius: 12, border: `1px solid ${C.line}`, overflow: "hidden" }}>
           {/* Header */}
           <div className="mlc-card-pad" style={{ padding: "22px 26px 0 26px" }}>
@@ -133,9 +202,15 @@ export default function App() {
                 </div>
                 <div style={{ fontFamily: "'Fraunces',serif", fontSize: 21, fontWeight: 600, color: C.ink }}>Mi Libro de Cuentas</div>
               </div>
-              <button onClick={signOut} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: `1px solid ${C.line}`, borderRadius: 7, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, color: C.inkSoft, cursor: "pointer" }}>
-                <LogOut size={13} /> {session.user.email}
-              </button>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button onClick={() => setIsPasswordModalOpen(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: `1px solid ${C.line}`, borderRadius: 7, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, color: C.inkSoft, cursor: "pointer" }}>
+                  <Key size={13} /> Cambiar clave
+                </button>
+                <button onClick={signOut} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: `1px solid ${C.line}`, borderRadius: 7, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, color: C.inkSoft, cursor: "pointer" }}>
+                  <LogOut size={13} /> {session.user.email}
+                </button>
+              </div>
             </div>
 
             <div style={{ display: "flex", gap: 4, marginTop: 20, borderBottom: `1px solid ${C.line}`, overflowX: "auto" }}>
@@ -177,7 +252,6 @@ export default function App() {
                 goals={goals}
                 contributions={contributions}
                 setContributions={setContributions}
-                /* -- NUEVOS PROPS AÑADIDOS -- */
                 investments={investments}
                 setInvestments={setInvestments}
               />
@@ -190,7 +264,7 @@ export default function App() {
                 contributions={contributions}
                 setContributions={setContributions}
                 period={period}
-                setPeriod={setPeriod} // <-- Añadido
+                setPeriod={setPeriod}
                 payDay={payDay}
                 incomeAnchors={incomeAnchors}
                 transactions={transactions}
@@ -204,8 +278,8 @@ export default function App() {
                 setInvestments={setInvestments}
                 payDay={payDay}
                 incomeAnchors={incomeAnchors}
-                period={period} // <-- Añadido
-                setPeriod={setPeriod} // <-- Añadido
+                period={period}
+                setPeriod={setPeriod}
                 transactions={transactions}
                 setTransactions={setTransactions}
               />
@@ -222,8 +296,8 @@ export default function App() {
                 setPeriod={setPeriod}
                 payDay={payDay}
                 incomeAnchors={incomeAnchors}
-                budget={budget}       // <-- AÑADIDO: Pasamos el estado global
-                setBudget={setBudget} // <-- AÑADIDO: Pasamos la función para actualizarlo
+                budget={budget}
+                setBudget={setBudget}
               />
             )}
           </div>
