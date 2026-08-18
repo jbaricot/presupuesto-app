@@ -292,6 +292,7 @@ export default function App() {
                 userId={userId}
                 categories={categories}
                 transactions={transactions}
+                investments={investments}
                 period={period}
                 setPeriod={setPeriod}
                 payDay={payDay}

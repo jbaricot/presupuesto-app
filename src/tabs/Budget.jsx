@@ -1,12 +1,13 @@
 /**
  * @file tabs/Budget.jsx
  * @description Configuración de topes de gasto por rubro (fijos, variables,
- * créditos, provisión) y del día de pago, con monitoreo en vivo del gasto
- * real del ciclo activo contra esos topes.
+ * créditos, provisión), del día de pago, y de qué plataformas de inversión
+ * forman el fondo de emergencia (usado por "meses de reserva cubiertos" en
+ * el Panorama).
  * 
- * Arquitectura corregida: Ahora recibe `budget` y `setBudget` desde App.jsx.
- * Al guardar, actualiza el estado global, por lo que el Panorama (Dashboard)
- * refleja el cambio de tope de manera instantánea sin requerir recargar la página.
+ * Arquitectura: recibe `budget` y `setBudget` desde App.jsx (no carga su
+ * propio estado) — al guardar, actualiza el estado global, así el Panorama
+ * refleja el cambio de tope de manera instantánea sin recargar la página.
  */
 
 import React, { useState, useEffect } from "react";
@@ -19,21 +20,35 @@ import { upsertBudget } from "../lib/data.js"; // Se eliminó fetchBudget ya que
 export default function BudgetTab({ 
   userId, 
   transactions = [], 
+  investments = [],
   period = "", 
   setPeriod = () => {}, 
   payDay = 1, 
   incomeAnchors = [],
-  budget,        // <-- AÑADIDO: Recibimos el estado global
-  setBudget      // <-- AÑADIDO: Recibimos el actualizador global
+  budget,        // <-- Recibimos el estado global
+  setBudget      // <-- Recibimos el actualizador global
 }) {
   const [form, setForm] = useState({
     provision: budget?.provision ?? 0,
     fijos: budget?.fijos ?? 0,
     creditos: budget?.creditos ?? 0,
     variables: budget?.variables ?? 0,
-    pay_day: budget?.pay_day ?? payDay ?? 1
+    pay_day: budget?.pay_day ?? payDay ?? 1,
+    emergency_fund_platforms: budget?.emergency_fund_platforms ?? "",
   });
   const [saving, setSaving] = useState(false);
+
+  const availablePlatforms = Array.from(new Set(investments.map(i => i.platform).filter(Boolean)));
+  const selectedPlatforms = form.emergency_fund_platforms
+    ? form.emergency_fund_platforms.split(",").map(p => p.trim()).filter(Boolean)
+    : [];
+
+  const togglePlatform = (platform) => {
+    const next = selectedPlatforms.includes(platform)
+      ? selectedPlatforms.filter(p => p !== platform)
+      : [...selectedPlatforms, platform];
+    setForm({ ...form, emergency_fund_platforms: next.join(", ") });
+  };
 
   // Sincronizar el formulario interno si el presupuesto global cambia
   useEffect(() => {
@@ -43,7 +58,8 @@ export default function BudgetTab({
         fijos: budget.fijos ?? 0,
         creditos: budget.creditos ?? 0,
         variables: budget.variables ?? 0,
-        pay_day: budget.pay_day ?? payDay ?? 1
+        pay_day: budget.pay_day ?? payDay ?? 1,
+        emergency_fund_platforms: budget.emergency_fund_platforms ?? "",
       });
     }
   }, [budget, payDay]);
@@ -57,7 +73,8 @@ export default function BudgetTab({
         fijos: Number(form.fijos || 0),
         creditos: Number(form.creditos || 0),
         variables: Number(form.variables || 0),
-        pay_day: Number(form.pay_day || 1)
+        pay_day: Number(form.pay_day || 1),
+        emergency_fund_platforms: form.emergency_fund_platforms || null,
       });
       
       // Actualizamos el estado de App.jsx para que afecte al Panorama al instante
@@ -124,6 +141,31 @@ export default function BudgetTab({
             <Field label="Día de pago (pay_day)">
               <input type="number" min="1" max="31" style={inputStyle} value={form.pay_day} onChange={e => setForm({...form, pay_day: e.target.value})} required disabled={saving} />
             </Field>
+
+            <Field label="Plataformas de tu fondo de emergencia">
+              {availablePlatforms.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, background: C.paperAlt, borderRadius: 7, padding: "8px 10px" }}>
+                  {availablePlatforms.map(p => (
+                    <label key={p} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.ink, cursor: "pointer" }}>
+                      <input type="checkbox" checked={selectedPlatforms.includes(p)} onChange={() => togglePlatform(p)} disabled={saving} />
+                      {p}
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <input
+                  style={inputStyle}
+                  value={form.emergency_fund_platforms}
+                  onChange={e => setForm({ ...form, emergency_fund_platforms: e.target.value })}
+                  placeholder="Ej. Skandia, Colfondos (aún no tienes plataformas en Inversión)"
+                  disabled={saving}
+                />
+              )}
+            </Field>
+            <div style={{ fontSize: 11, color: C.inkFaint, marginTop: -4 }}>
+              El Panorama sumará el saldo neto de estas plataformas para "Meses de reserva cubiertos", en vez de adivinar con el último registro de cualquier plataforma. Puedes marcar una o varias.
+            </div>
+
             <Field label="Gastos Fijos">
               <input type="number" min="0" style={inputStyle} value={form.fijos} onChange={e => setForm({...form, fijos: e.target.value})} disabled={saving} />
             </Field>

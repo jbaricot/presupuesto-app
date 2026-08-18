@@ -187,6 +187,7 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
       let transactionId = form.transactionId || null;
 
       if (form.syncToTx && aporteVal > 0 && !editingId) {
+        // Registro nuevo: crea la transacción de provisión vinculada.
         const derivedPeriod = form.date 
           ? periodForTransaction("provision", form.date, payDay, incomeAnchors) 
           : form.period;
@@ -207,6 +208,9 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
         transactionId = newTx.id;
         setTransactions([newTx, ...transactions]);
       } else if (editingId && form.syncToTx && transactionId) {
+        // Registro existente CON transacción vinculada y sincronización activa:
+        // actualiza esa transacción para que refleje el nuevo aporte/fecha,
+        // en vez de dejarla desactualizada silenciosamente.
         const derivedPeriod = form.date
           ? periodForTransaction("provision", form.date, payDay, incomeAnchors)
           : form.period;

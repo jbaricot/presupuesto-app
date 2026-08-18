@@ -93,31 +93,55 @@ export default function Dashboard({ transactions, goals, contributions, investme
     return baseAporte - Number(i.retiros || 0) + Number(i.rendimientos || 0) - Number(i.costos || 0);
   };
 
-/** Meses de reserva cubiertos: reserva de oxígeno (Skandia + Colfondos) / promedio de gastos fijos recientes */
+  /**
+   * Meses de reserva cubiertos: saldo del fondo de emergencia ÷ promedio de
+   * gastos fijos recientes.
+   *
+   * Qué cuenta como "fondo de emergencia" se configura en la pestaña
+   * Presupuesto (`budget.emergency_fund_platforms`, una o varias
+   * plataformas de investments.platform separadas por coma — ej. "Skandia,
+   * Colfondos"). Se suma el saldo NETO acumulado (aportes - retiros +
+   * rendimientos - costos) de todos los registros de esas plataformas, no
+   * solo el más reciente, para reflejar el histórico completo.
+   *
+   * Si el usuario no configuró ninguna plataforma todavía, cae a un
+   * heurístico de respaldo: el registro más reciente de CUALQUIER
+   * plataforma — menos preciso si hay varias, pero mejor que nada.
+   */
   const monthsOfReserve = useMemo(() => {
     if (investments.length === 0) return null;
 
-    // Filtramos SOLO las plataformas de tu estrategia de Reserva de Oxígeno
-    const reservaActual = investments
-      .filter(i => {
-        const plat = (i.platform || "").toLowerCase();
-        return plat.includes("skandia") || plat.includes("colfondos");
-      })
-      .reduce((sum, i) => sum + netInvestmentValue(i), 0);
+    const configuredPlatforms = (budget.emergency_fund_platforms || "")
+      .split(",")
+      .map((p) => p.trim().toLowerCase())
+      .filter(Boolean);
+
+    let reserva;
+    let isPreciseSource;
+    if (configuredPlatforms.length > 0) {
+      const matching = investments.filter((i) => configuredPlatforms.includes((i.platform || "").trim().toLowerCase()));
+      if (matching.length === 0) return null;
+      reserva = matching.reduce((sum, i) => sum + netInvestmentValue(i), 0);
+      isPreciseSource = true;
+    } else {
+      const latestInv = investments.slice().sort((a, b) => b.period.localeCompare(a.period))[0];
+      reserva = Number(latestInv.reserva || 0);
+      isPreciseSource = false;
+    }
 
     const byPeriod = {};
     transactions.filter((t) => t.type === "fijo").forEach((t) => {
       byPeriod[t.period] = (byPeriod[t.period] || 0) + Number(t.value || 0);
     });
-    
+
     const recentPeriods = Object.keys(byPeriod).sort().slice(-3);
-    if (recentPeriods.length === 0 || reservaActual <= 0) return null;
-    
+    if (recentPeriods.length === 0 || reserva <= 0) return null;
+
     const avgFijos = recentPeriods.reduce((a, p) => a + byPeriod[p], 0) / recentPeriods.length;
     if (avgFijos <= 0) return null;
-    
-    return { reserva: reservaActual, avgFijos, months: reservaActual / avgFijos };
-  }, [investments, transactions]);
+
+    return { reserva, avgFijos, months: reserva / avgFijos, isPreciseSource };
+  }, [investments, transactions, budget.emergency_fund_platforms]);
 
   /** Pacing / Velocidad de Gasto: Compara el tiempo transcurrido vs el presupuesto consumido */
   const pacing = useMemo(() => {
@@ -255,7 +279,7 @@ export default function Dashboard({ transactions, goals, contributions, investme
                 {monthsOfReserve.months.toFixed(1)}
               </div>
               <div style={{ fontSize: 12, color: C.inkFaint, marginTop: 2 }}>
-                con {fmtCompact(monthsOfReserve.reserva)} de reserva operativa
+                con {fmtCompact(monthsOfReserve.reserva)} de reserva{monthsOfReserve.isPreciseSource ? "" : " operativa (aprox., configura tus plataformas en Presupuesto)"}
               </div>
             </>
           )}
