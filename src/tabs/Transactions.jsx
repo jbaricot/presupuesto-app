@@ -23,7 +23,7 @@ import { C, TX_TYPES, TX_TYPE_LABEL, PAYMENT_METHODS } from "../theme.js";
 import { fmtCOP, fmtCompact } from "../lib/helpers.js";
 import { periodForTransaction, cyclePeriodLabelSmart } from "../lib/payCycle.js";
 import { Card, SectionTitle, PeriodNav, Field, inputStyle, Btn, Empty } from "../components/ui.jsx";
-import { addTransaction, updateTransaction, deleteTransaction, addContribution, addInvestment } from "../lib/data.js";
+import { addTransaction, updateTransaction, deleteTransaction, addContribution, deleteContribution, addInvestment, deleteInvestment } from "../lib/data.js";
 import ImportModal from "../components/ImportModal.jsx";
 
 const SORT_OPTIONS = [
@@ -142,7 +142,8 @@ export default function TransactionsTab({
               date: form.date || null,
               reserva: invType === "reserva" ? val : 0,
               renta_fija: invType === "renta_fija" ? val : 0,
-              renta_variable: invType === "renta_variable" ? val : 0
+              renta_variable: invType === "renta_variable" ? val : 0,
+              transaction_id: created.id, // vínculo para poder editar/borrar en conjunto desde cualquiera de las dos pestañas
             });
             setInvestments([...investments, newInv]);
           }
@@ -158,7 +159,8 @@ export default function TransactionsTab({
               costos: 0,
               reserva: val,
               renta_fija: 0,
-              renta_variable: 0
+              renta_variable: 0,
+              transaction_id: created.id,
             });
             setInvestments([...investments, newInvPlatform]);
           }
@@ -176,10 +178,30 @@ export default function TransactionsTab({
   const edit = (t) => { setForm({ ...t, value: String(t.value), allocation: "none", platform: "" }); setEditingId(t.id); };
 
   const remove = async (id) => {
-    if (!confirm("¿Eliminar este movimiento?")) return;
+    // Si esta transacción originó un aporte de meta o un registro de inversión
+    // (vía la vinculación automática al crearla), hay que avisar y limpiarlo
+    // también — si no, queda un registro huérfano sin transacción de origen.
+    const linkedContrib = contributions.find((c) => c.transaction_id === id);
+    const linkedInv = investments.find((i) => i.transaction_id === id);
+
+    let confirmMsg = "¿Eliminar este movimiento?";
+    if (linkedContrib) confirmMsg = "Este movimiento tiene un aporte de meta vinculado, que también se eliminará. ¿Continuar?";
+    else if (linkedInv) confirmMsg = "Este movimiento tiene un registro de inversión vinculado, que también se eliminará. ¿Continuar?";
+
+    if (!confirm(confirmMsg)) return;
+
     try {
       await deleteTransaction(id);
       setTransactions(transactions.filter((t) => t.id !== id));
+
+      if (linkedContrib) {
+        await deleteContribution(linkedContrib.id);
+        setContributions(contributions.filter((c) => c.id !== linkedContrib.id));
+      }
+      if (linkedInv) {
+        await deleteInvestment(linkedInv.id);
+        setInvestments(investments.filter((i) => i.id !== linkedInv.id));
+      }
     } catch (error) {
       alert("Error al eliminar: " + error.message);
     }
@@ -216,7 +238,7 @@ export default function TransactionsTab({
 
   return (
     <div>
-      <SectionTitle eyebrow="Registro" title="Transactions" right={<PeriodNav period={period} setPeriod={setPeriod} payDay={payDay} incomeAnchors={incomeAnchors} />} />
+      <SectionTitle eyebrow="Registro" title="Transacciones" right={<PeriodNav period={period} setPeriod={setPeriod} payDay={payDay} incomeAnchors={incomeAnchors} />} />
       
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 14 }}>
         <Btn variant="ghost" onClick={exportToCSV}>

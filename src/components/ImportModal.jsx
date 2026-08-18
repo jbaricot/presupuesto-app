@@ -15,7 +15,7 @@
 import React, { useState, useRef } from "react";
 import { X, Check, Trash2, Zap, FileText } from "lucide-react";
 import { C, TX_TYPES } from "../theme.js";
-import { Card, inputStyle, Btn } from "./ui.jsx";
+import { Card, inputStyle, Btn, Field } from "./ui.jsx";
 
 // Limpiador seguro para montos en formato de texto de Davivienda
 const cleanCopNumber = (str) => {
@@ -33,6 +33,7 @@ const cleanCopNumber = (str) => {
 export default function ImportModal({ isOpen, onClose, categories, onSaveBulk }) {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [statementYear, setStatementYear] = useState(String(new Date().getFullYear()));
     const fileInputRef = useRef(null);
 
     if (!isOpen) return null;
@@ -61,8 +62,11 @@ export default function ImportModal({ isOpen, onClose, categories, onSaveBulk })
                 if (match) {
                     const [, day, month, rawDigits, sign, doc, rawDesc] = match;
 
-                    const currentYear = "2026"; // Contexto temporal del archivo
-                    const formattedDate = `${currentYear}-${month}-${day}`;
+                    // El extracto de Davivienda no trae el año en cada línea, así que se usa
+                    // el que el usuario indicó arriba (por defecto, el año actual). Si el
+                    // extracto cruza fin de año (ej. diciembre-enero) hay que corregir a mano
+                    // las filas del lado equivocado del corte antes de importar.
+                    const formattedDate = `${statementYear}-${month}-${day}`;
 
                     const isIncome = sign === "+";
                     const numericValue = cleanCopNumber(rawDigits);
@@ -86,6 +90,9 @@ export default function ImportModal({ isOpen, onClose, categories, onSaveBulk })
         };
 
         reader.readAsText(file, "ISO-8859-1");
+        // Permite volver a seleccionar el MISMO archivo si el usuario cancela y reintenta
+        // (si no se limpia, el navegador no dispara onChange la segunda vez).
+        e.target.value = "";
     };
 
     const updateRow = (id, field, value) => {
@@ -128,19 +135,30 @@ export default function ImportModal({ isOpen, onClose, categories, onSaveBulk })
                 </div>
 
                 {data.length === 0 ? (
-                    <div style={{ border: `2px dashed ${C.line}`, borderRadius: 12, padding: 50, textAlign: "center", cursor: "pointer", background: C.paperAlt }} onClick={() => fileInputRef.current.click()}>
-                        <FileText size={36} color={C.gold} style={{ margin: "0 auto", marginBottom: 16 }} />
-                        <div style={{ fontSize: 15, fontWeight: 600, color: C.ink }}>Haz clic para seleccionar tu archivo .txt de Davivienda</div>
-                        <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 6 }}>Se detectarán automáticamente fechas, comercios y valores.</div>
-                        <input type="file" accept=".txt, .csv" ref={fileInputRef} onChange={handleFileUpload} style={{ display: "none" }} />
-                    </div>
+                    <>
+                        <Field label="Año del extracto">
+                            <input
+                                type="number" min="2000" max="2100" style={{ ...inputStyle, maxWidth: 140 }}
+                                value={statementYear} onChange={(e) => setStatementYear(e.target.value)}
+                            />
+                        </Field>
+                        <div style={{ fontSize: 11.5, color: C.inkFaint, marginTop: 4, marginBottom: 14 }}>
+                            El extracto solo trae día y mes por línea — si cruza fin de año, corrige a mano las fechas del lado equivocado después de importar.
+                        </div>
+                        <div style={{ border: `2px dashed ${C.line}`, borderRadius: 12, padding: 50, textAlign: "center", cursor: "pointer", background: C.paperAlt }} onClick={() => fileInputRef.current.click()}>
+                            <FileText size={36} color={C.gold} style={{ margin: "0 auto", marginBottom: 16 }} />
+                            <div style={{ fontSize: 15, fontWeight: 600, color: C.ink }}>Haz clic para seleccionar tu archivo .txt de Davivienda</div>
+                            <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 6 }}>Se detectarán automáticamente fechas, comercios y valores.</div>
+                            <input type="file" accept=".txt, .csv" ref={fileInputRef} onChange={handleFileUpload} style={{ display: "none" }} />
+                        </div>
+                    </>
                 ) : (
                     <>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${C.line}` }}>
                             <div style={{ fontSize: 13, fontWeight: 600, color: C.inkSoft }}>
                                 ✨ ¡{data.length} movimientos de Davivienda detectados con éxito!
                             </div>
-                            <Btn variant="ghost" style={{ color: C.sage, borderColor: C.sageSoft }}>
+                            <Btn variant="ghost" disabled style={{ color: C.sage, borderColor: C.sageSoft }}>
                                 <Zap size={14} /> Categorizar con IA (Próximamente)
                             </Btn>
                         </div>

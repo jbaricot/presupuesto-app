@@ -81,6 +81,18 @@ export default function Dashboard({ transactions, goals, contributions, investme
   /** Tasa de ahorro: % del ingreso del ciclo que fue a provisión/ahorro */
   const savingsRate = totals.ingresos > 0 ? (totals.provision / totals.ingresos) * 100 : null;
 
+  /**
+   * Patrimonio neto de un registro de inversión: aporte - retiros + rendimientos - costos.
+   * Debe coincidir EXACTO con el cálculo de tabs/Investments.jsx (netRow) — si se
+   * calculan distinto en cada lado, Panorama e Inversión muestran totales que no cuadran
+   * entre sí para los mismos datos. `reserva` es el fallback para registros viejos
+   * (de antes de que existiera `aporte`) que no tienen retiros/rendimientos/costos.
+   */
+  const netInvestmentValue = (i) => {
+    const baseAporte = Number(i.aporte ?? i.reserva ?? 0);
+    return baseAporte - Number(i.retiros || 0) + Number(i.rendimientos || 0) - Number(i.costos || 0);
+  };
+
   /** Meses de reserva cubiertos: reserva de oxígeno actual / promedio de gastos fijos recientes */
   const monthsOfReserve = useMemo(() => {
     if (investments.length === 0) return null;
@@ -129,7 +141,7 @@ export default function Dashboard({ transactions, goals, contributions, investme
       accCash += (inFlow - outFlow);
       
       const invs = investments.filter(i => i.period === p);
-      const periodInv = invs.reduce((a, i) => a + Number(i.reserva) + Number(i.renta_fija) + Number(i.renta_variable), 0);
+      const periodInv = invs.reduce((a, i) => a + netInvestmentValue(i), 0);
       accInv += periodInv;
       
       return {
@@ -148,7 +160,7 @@ export default function Dashboard({ transactions, goals, contributions, investme
     { key: "provision", label: "Provisión", actual: totals.provision, target: budget.provision },
   ];
 
-  const investTotal = investments.reduce((a, i) => a + Number(i.reserva || 0) + Number(i.renta_fija || 0) + Number(i.renta_variable || 0), 0);
+  const investTotal = investments.reduce((a, i) => a + netInvestmentValue(i), 0);
   // --- LÓGICA DEL RANKING DE CATEGORÍAS ---
   const categoryRanking = useMemo(() => {
     const map = {};
@@ -347,8 +359,7 @@ export default function Dashboard({ transactions, goals, contributions, investme
             </div>
           )}
         </Card>
-        {/* Tarjeta de Top Gastos por Categoría */}
-      {/* Top Gastos por Categoría */}
+        {/* Top Gastos por Categoría */}
         <Card style={{ padding: 18 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3, marginBottom: 14 }}>
             TOP GASTOS POR CATEGORÍA
