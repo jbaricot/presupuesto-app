@@ -3,13 +3,10 @@
  * @description Configuración de topes de gasto por rubro (fijos, variables,
  * créditos, provisión) y del día de pago, con monitoreo en vivo del gasto
  * real del ciclo activo contra esos topes.
- *
- * Nota de arquitectura: a diferencia de las demás pestañas, esta carga su
- * propio presupuesto con fetchBudget en un useEffect en vez de recibirlo
- * por props desde App.jsx — así que si cambias el presupuesto desde acá,
- * el estado `budget` de App.jsx no se entera hasta la próxima carga de
- * página. No afecta el uso normal, pero es bueno saberlo si el Panorama
- * no refleja un cambio de tope al toque.
+ * 
+ * Arquitectura corregida: Ahora recibe `budget` y `setBudget` desde App.jsx.
+ * Al guardar, actualiza el estado global, por lo que el Panorama (Dashboard)
+ * refleja el cambio de tope de manera instantánea sin requerir recargar la página.
  */
 
 import React, { useState, useEffect } from "react";
@@ -17,7 +14,7 @@ import { Check } from "lucide-react";
 import { C } from "../theme.js";
 import { fmtCOP } from "../lib/helpers.js";
 import { Card, SectionTitle, PeriodNav, Field, inputStyle, Btn, ProgressBar } from "../components/ui.jsx";
-import { fetchBudget, upsertBudget } from "../lib/data.js";
+import { upsertBudget } from "../lib/data.js"; // Se eliminó fetchBudget ya que App.jsx lo maneja
 
 export default function BudgetTab({ 
   userId, 
@@ -25,58 +22,46 @@ export default function BudgetTab({
   period = "", 
   setPeriod = () => {}, 
   payDay = 1, 
-  incomeAnchors = [] 
+  incomeAnchors = [],
+  budget,        // <-- AÑADIDO: Recibimos el estado global
+  setBudget      // <-- AÑADIDO: Recibimos el actualizador global
 }) {
   const [form, setForm] = useState({
-    provision: 0,
-    fijos: 0,
-    creditos: 0,
-    variables: 0,
-    pay_day: payDay || 1
+    provision: budget?.provision ?? 0,
+    fijos: budget?.fijos ?? 0,
+    creditos: budget?.creditos ?? 0,
+    variables: budget?.variables ?? 0,
+    pay_day: budget?.pay_day ?? payDay ?? 1
   });
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Cargar presupuesto desde Supabase de forma segura
+  // Sincronizar el formulario interno si el presupuesto global cambia
   useEffect(() => {
-    let isMounted = true;
-    async function load() {
-      if (!userId) {
-        if (isMounted) setLoading(false);
-        return;
-      }
-      try {
-        const data = await fetchBudget(userId);
-        if (data && isMounted) {
-          setForm({
-            provision: data.provision ?? 0,
-            fijos: data.fijos ?? 0,
-            creditos: data.creditos ?? 0,
-            variables: data.variables ?? 0,
-            pay_day: data.pay_day ?? payDay ?? 1
-          });
-        }
-      } catch (e) {
-        console.error("Error al cargar presupuesto:", e);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
+    if (budget) {
+      setForm({
+        provision: budget.provision ?? 0,
+        fijos: budget.fijos ?? 0,
+        creditos: budget.creditos ?? 0,
+        variables: budget.variables ?? 0,
+        pay_day: budget.pay_day ?? payDay ?? 1
+      });
     }
-    load();
-    return () => { isMounted = false; };
-  }, [userId, payDay]);
+  }, [budget, payDay]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
-      await upsertBudget(userId, {
+      const updatedBudget = await upsertBudget(userId, {
         provision: Number(form.provision || 0),
         fijos: Number(form.fijos || 0),
         creditos: Number(form.creditos || 0),
         variables: Number(form.variables || 0),
         pay_day: Number(form.pay_day || 1)
       });
+      
+      // Actualizamos el estado de App.jsx para que afecte al Panorama al instante
+      setBudget(updatedBudget); 
       alert("¡Presupuesto guardado con éxito!");
     } catch (err) {
       alert("Error al guardar: " + err.message);
@@ -99,10 +84,6 @@ export default function BudgetTab({
   const totalSpent = spentFijos + spentVariables + spentCreditos + spentProvision;
   const totalLimit = Number(form.fijos || 0) + Number(form.variables || 0) + Number(form.creditos || 0) + Number(form.provision || 0);
   const globalPct = totalLimit > 0 ? (totalSpent / totalLimit) * 100 : 0;
-
-  if (loading) {
-    return <div style={{ padding: 24, color: C.inkSoft }}>Cargando módulo de presupuesto...</div>;
-  }
 
   return (
     <div>

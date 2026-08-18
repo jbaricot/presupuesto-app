@@ -93,20 +93,30 @@ export default function Dashboard({ transactions, goals, contributions, investme
     return baseAporte - Number(i.retiros || 0) + Number(i.rendimientos || 0) - Number(i.costos || 0);
   };
 
-  /** Meses de reserva cubiertos: reserva de oxígeno actual / promedio de gastos fijos recientes */
+/** Meses de reserva cubiertos: reserva de oxígeno (Skandia + Colfondos) / promedio de gastos fijos recientes */
   const monthsOfReserve = useMemo(() => {
     if (investments.length === 0) return null;
-    const latestInv = investments.slice().sort((a, b) => b.period.localeCompare(a.period))[0];
-    const reserva = Number(latestInv.reserva || 0);
+
+    // Filtramos SOLO las plataformas de tu estrategia de Reserva de Oxígeno
+    const reservaActual = investments
+      .filter(i => {
+        const plat = (i.platform || "").toLowerCase();
+        return plat.includes("skandia") || plat.includes("colfondos");
+      })
+      .reduce((sum, i) => sum + netInvestmentValue(i), 0);
+
     const byPeriod = {};
     transactions.filter((t) => t.type === "fijo").forEach((t) => {
       byPeriod[t.period] = (byPeriod[t.period] || 0) + Number(t.value || 0);
     });
+    
     const recentPeriods = Object.keys(byPeriod).sort().slice(-3);
-    if (recentPeriods.length === 0) return null;
+    if (recentPeriods.length === 0 || reservaActual <= 0) return null;
+    
     const avgFijos = recentPeriods.reduce((a, p) => a + byPeriod[p], 0) / recentPeriods.length;
     if (avgFijos <= 0) return null;
-    return { reserva, avgFijos, months: reserva / avgFijos };
+    
+    return { reserva: reservaActual, avgFijos, months: reservaActual / avgFijos };
   }, [investments, transactions]);
 
   /** Pacing / Velocidad de Gasto: Compara el tiempo transcurrido vs el presupuesto consumido */

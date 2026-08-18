@@ -222,6 +222,8 @@ export default function App() {
                 setPeriod={setPeriod}
                 payDay={payDay}
                 incomeAnchors={incomeAnchors}
+                budget={budget}       // <-- AÑADIDO: Pasamos el estado global
+                setBudget={setBudget} // <-- AÑADIDO: Pasamos la función para actualizarlo
               />
             )}
           </div>

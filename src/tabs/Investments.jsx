@@ -11,9 +11,10 @@
  *
  * Igual que en Transacciones, aportar acá puede crear opcionalmente una
  * transacción de provisión vinculada (casilla "syncToTx").
+* Incluye exportación a CSV con formato anual (Ene-Dic) y BOM UTF-8.
  */
 import React, { useState, useMemo } from "react";
-import { Plus, X, Pencil, Trash2, PiggyBank, Building2 } from "lucide-react";
+import { Plus, X, Pencil, Trash2, PiggyBank, Building2, Download } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { C } from "../theme.js";
 import { fmtCOP, fmtCompact } from "../lib/helpers.js";
@@ -31,7 +32,7 @@ function emptyInv(period) {
     rendimientos: "", 
     costos: "",
     syncToTx: true,
-    transactionId: null, // id de la transacción vinculada (solo se llena al editar un registro que ya tenía una)
+    transactionId: null,
   }; 
 }
 
@@ -46,13 +47,11 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
     return Array.from(set);
   }, [investments]);
 
-  // Gráfico de evolución acumulada filtrado y agrupado correctamente por mes
   const chartData = useMemo(() => {
     const filtered = selectedPlatformFilter === "todos" 
       ? investments 
       : investments.filter(i => (i.platform || "General") === selectedPlatformFilter);
 
-    // Agrupar neto por período para evitar duplicados en el mismo mes
     const periodMap = {};
     filtered.forEach(i => {
       const p = i.period;
@@ -71,7 +70,6 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
       });
   }, [investments, selectedPlatformFilter]);
 
-  // Patrimonio total adaptado al filtro de plataforma seleccionado
   const totalAll = useMemo(() => {
     const filtered = selectedPlatformFilter === "todos" 
       ? investments 
@@ -117,6 +115,68 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
     });
   }, [investments, period, selectedPlatformFilter]);
 
+  // Función para exportar el resumen anual tipo Excel
+  const exportInvestmentsCSV = () => {
+    const year = period ? period.split("-")[0] : new Date().getFullYear().toString();
+    
+    const filtered = selectedPlatformFilter === "todos" 
+      ? investments 
+      : investments.filter(i => (i.platform || "General") === selectedPlatformFilter);
+
+    const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+    
+    let runningTotal = 0;
+    let totalAporteSum = 0;
+    let totalRetirosSum = 0;
+    let totalRendimientosSum = 0;
+    let totalCostosSum = 0;
+
+    const rows = monthNames.map((monthName, idx) => {
+      const monthNum = String(idx + 1).padStart(2, "0");
+      const periodKey = `${year}-${monthNum}`;
+
+      const monthInvs = filtered.filter(i => i.period === periodKey);
+
+      const aporte = monthInvs.reduce((sum, i) => sum + Number(i.aporte || i.reserva || 0), 0);
+      const retiros = monthInvs.reduce((sum, i) => sum + Number(i.retiros || 0), 0);
+      const rendimientos = monthInvs.reduce((sum, i) => sum + Number(i.rendimientos || 0), 0);
+      const costos = monthInvs.reduce((sum, i) => sum + Number(i.costos || 0), 0);
+
+      const netPeriod = aporte - retiros + rendimientos - costos;
+      runningTotal += netPeriod;
+
+      totalAporteSum += aporte;
+      totalRetirosSum += retiros;
+      totalRendimientosSum += rendimientos;
+      totalCostosSum += costos;
+
+      return [
+        monthName,
+        aporte,
+        retiros,
+        rendimientos,
+        runningTotal,
+        -costos
+      ];
+    });
+
+    const headers = ["Mes", "Aporte", "Retiros", "Rendimientos", "Total", "Costos"];
+    const summaryRow = ["Total", totalAporteSum, totalRetirosSum, totalRendimientosSum, runningTotal, -totalCostosSum];
+
+    const csvContent = [headers.join(","), ...rows.map(r => r.join(",")), summaryRow.join(",")].join("\n");
+    
+    // BOM para soporte UTF-8 en Excel
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `resumen_inversiones_${year}_${selectedPlatformFilter}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     if (!form.period || !form.platform) return;
@@ -127,7 +187,6 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
       let transactionId = form.transactionId || null;
 
       if (form.syncToTx && aporteVal > 0 && !editingId) {
-        // Registro nuevo: crea la transacción de provisión vinculada.
         const derivedPeriod = form.date 
           ? periodForTransaction("provision", form.date, payDay, incomeAnchors) 
           : form.period;
@@ -148,9 +207,6 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
         transactionId = newTx.id;
         setTransactions([newTx, ...transactions]);
       } else if (editingId && form.syncToTx && transactionId) {
-        // Registro existente CON transacción vinculada y sincronización activa:
-        // actualiza esa transacción para que refleje el nuevo aporte/fecha,
-        // en vez de dejarla desactualizada silenciosamente.
         const derivedPeriod = form.date
           ? periodForTransaction("provision", form.date, payDay, incomeAnchors)
           : form.period;
@@ -204,9 +260,6 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
       retiros: String(i.retiros ?? ""), 
       rendimientos: String(i.rendimientos ?? ""), 
       costos: String(i.costos ?? ""),
-      // Si este registro ya tiene una transacción vinculada, se mantiene la
-      // sincronización activada por defecto (así un cambio de aporte se
-      // refleja también ahí); el usuario puede destildarla si no la quiere.
       syncToTx: Boolean(i.transaction_id),
       transactionId: i.transaction_id || null,
     }); 
@@ -235,7 +288,14 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
       <SectionTitle 
         eyebrow="Reserva y crecimiento" 
         title="Inversión y Ahorro" 
-        right={<PeriodNav period={period} setPeriod={setPeriod} payDay={payDay} incomeAnchors={incomeAnchors} />} 
+        right={
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <Btn variant="ghost" onClick={exportInvestmentsCSV} style={{ padding: "6px 12px", fontSize: 12 }}>
+              <Download size={14} /> Exportar Resumen CSV
+            </Btn>
+            <PeriodNav period={period} setPeriod={setPeriod} payDay={payDay} incomeAnchors={incomeAnchors} />
+          </div>
+        } 
       />
       <div className="mlc-grid-form-s">
         
