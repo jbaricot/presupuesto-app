@@ -26,7 +26,7 @@ function emptyInv(period) {
   return { 
     period, 
     date: "", 
-    platform: "Nubank", 
+    platform: "S", 
     aporte: "", 
     retiros: "", 
     rendimientos: "", 
