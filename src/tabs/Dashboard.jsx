@@ -8,6 +8,8 @@
  * escribe nada en Supabase, solo deriva todo de las props que le pasa App.jsx.
  * Vista de indicadores del ciclo activo.
  * Ahora incluye la exportación de la Matriz Anual de Presupuesto a CSV.
+ * Vista de indicadores del ciclo activo adaptada a la nueva nomenclatura:
+ * gastos_esenciales y gastos_no_esenciales.
  */
 import React, { useMemo } from "react";
 import { ArrowUpRight, ArrowDownRight, AlertTriangle, Download } from "lucide-react";
@@ -23,15 +25,16 @@ import { Card, SectionTitle, PeriodNav, ProgressBar, Empty, LedgerStamp, Btn } f
 export default function Dashboard({ transactions, goals, contributions, investments, budget, period, setPeriod, payDay, incomeAnchors }) {
   const periodTx = useMemo(() => transactions.filter((t) => t.period === period), [transactions, period]);
   
+  // 1. ACTUALIZADO: Sumas usando los nuevos IDs de tipos de gasto
   const totals = useMemo(() => {
     const sum = (type) => periodTx.filter((t) => t.type === type).reduce((a, t) => a + Number(t.value || 0), 0);
     const ingresos = sum("ingreso");
-    const fijos = sum("fijo");
-    const variables = sum("variable");
+    const gastos_esenciales = sum("gastos_esenciales");
+    const gastos_no_esenciales = sum("gastos_no_esenciales");
     const creditos = sum("credito");
     const provision = sum("provision");
-    const gastos = fijos + variables + creditos + provision;
-    return { ingresos, fijos, variables, creditos, provision, gastos, saldo: ingresos - gastos };
+    const gastos = gastos_esenciales + gastos_no_esenciales + creditos + provision;
+    return { ingresos, gastos_esenciales, gastos_no_esenciales, creditos, provision, gastos, saldo: ingresos - gastos };
   }, [periodTx]);
 
   const categoryData = useMemo(() => {
@@ -86,17 +89,26 @@ export default function Dashboard({ transactions, goals, contributions, investme
     return baseAporte - Number(i.retiros || 0) + Number(i.rendimientos || 0) - Number(i.costos || 0);
   };
 
+  // 2. ACTUALIZADO: Meses de reserva usa el promedio de 'gastos_esenciales' y lee las plataformas dinámicas
   const monthsOfReserve = useMemo(() => {
     if (investments.length === 0) return null;
+    
+    const emergencyPlatforms = budget?.emergency_fund_platforms 
+      ? budget.emergency_fund_platforms.split(",").map(p => p.trim().toLowerCase()).filter(Boolean)
+      : [];
+
     const reservaActual = investments
       .filter(i => {
         const plat = (i.platform || "").toLowerCase();
+        if (emergencyPlatforms.length > 0) {
+          return emergencyPlatforms.some(ep => plat.includes(ep));
+        }
         return plat.includes("skandia") || plat.includes("colfondos");
       })
       .reduce((sum, i) => sum + netInvestmentValue(i), 0);
 
     const byPeriod = {};
-    transactions.filter((t) => t.type === "fijo").forEach((t) => {
+    transactions.filter((t) => t.type === "gastos_esenciales").forEach((t) => {
       byPeriod[t.period] = (byPeriod[t.period] || 0) + Number(t.value || 0);
     });
     
@@ -107,8 +119,9 @@ export default function Dashboard({ transactions, goals, contributions, investme
     if (avgFijos <= 0) return null;
     
     return { reserva: reservaActual, avgFijos, months: reservaActual / avgFijos };
-  }, [investments, transactions]);
+  }, [investments, transactions, budget]);
 
+  // 3. ACTUALIZADO: Pacing evalúa el consumo sumando esenciales + no esenciales
   const pacing = useMemo(() => {
     const { start, end } = cycleRangeSmart(period, payDay, incomeAnchors);
     const now = new Date();
@@ -117,8 +130,8 @@ export default function Dashboard({ transactions, goals, contributions, investme
     const elapsedDays = Math.max(0, Math.min((now - start) / 86400000, totalDays));
     const timePct = (elapsedDays / totalDays) * 100;
     
-    const budgetOp = Number(budget.fijos) + Number(budget.variables);
-    const spentOp = totals.fijos + totals.variables;
+    const budgetOp = Number(budget?.gastos_esenciales || 0) + Number(budget?.gastos_no_esenciales || 0);
+    const spentOp = totals.gastos_esenciales + totals.gastos_no_esenciales;
     const spentPct = budgetOp > 0 ? (spentOp / budgetOp) * 100 : 0;
     
     const isDanger = spentPct > (timePct + 5); 
@@ -145,25 +158,17 @@ export default function Dashboard({ transactions, goals, contributions, investme
     });
   }, [transactions, investments]);
 
-  // --- LÓGICA DE EXPORTACIÓN MATRIZ ANUAL ---
+  // 4. ACTUALIZADO: Exportador usa la nueva nomenclatura
   const exportAnnualMatrix = () => {
-    // Tomamos el año del período activo
     const year = period ? period.split("-")[0] : new Date().getFullYear().toString();
-    
-    // Filtramos transacciones solo de ese año
     const yearTxs = transactions.filter(t => t.period && t.period.startsWith(`${year}-`));
-
-    // Cabeceras de meses (ene-26, feb-26...)
     const monthNames = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
     const headerMonths = monthNames.map(m => `${m}-${year.slice(2)}`);
 
-    // Estructura de agrupación
-    const matrix = { ingreso: {}, fijo: {}, variable: {}, credito: {}, provision: {} };
+    const matrix = { ingreso: {}, gastos_esenciales: {}, gastos_no_esenciales: {}, credito: {}, provision: {} };
 
-    // Llenamos la matriz
     yearTxs.forEach(t => {
       const tType = t.type;
-      // Usamos categoría o el nombre si no tiene
       const tCat = t.category || (tType === "ingreso" ? t.name : "Sin categoría");
       const mIndex = parseInt(t.period.split("-")[1], 10) - 1;
 
@@ -176,7 +181,6 @@ export default function Dashboard({ transactions, goals, contributions, investme
     const headers = ["GRUPO", "CATEGORÍA", "PRESUPUESTO", ...headerMonths];
     const rows = [headers.join(",")];
 
-    // Función auxiliar para crear bloques (filas) y devolver el subtotal anual por mes
     const addGroup = (groupKey, groupName, isExpense) => {
       const categories = Object.keys(matrix[groupKey]).sort();
       let subtotal = Array(12).fill(0);
@@ -184,12 +188,10 @@ export default function Dashboard({ transactions, goals, contributions, investme
       categories.forEach(cat => {
         const vals = matrix[groupKey][cat];
         vals.forEach((v, i) => subtotal[i] += v);
-        // Volvemos los gastos negativos para que coincida con tu formato visual en Excel
         const formattedVals = vals.map(v => v === 0 ? "" : (isExpense ? -v : v));
         rows.push(`"${groupName}","${cat}","",${formattedVals.join(",")}`);
       });
 
-      // Totalizadores por bloque
       if (groupKey === "ingreso" && categories.length > 0) {
         const formattedVals = subtotal.map(v => v === 0 ? "" : v);
         rows.push(`"TOTAL INGRESOS","", "",${formattedVals.join(",")}`);
@@ -198,14 +200,12 @@ export default function Dashboard({ transactions, goals, contributions, investme
       return subtotal;
     };
 
-    // Construimos los bloques mapeando los tipos de la app con los nombres de tu Excel
     const inSub = addGroup("ingreso", "INGRESOS", false);
-    const fixSub = addGroup("fijo", "GASTOS ESENCIALES", true);
-    const varSub = addGroup("variable", "GASTOS NO ESENCIALES", true);
+    const fixSub = addGroup("gastos_esenciales", "GASTOS ESENCIALES", true);
+    const varSub = addGroup("gastos_no_esenciales", "GASTOS NO ESENCIALES", true);
     const provSub = addGroup("provision", "PROVISIONES", true);
     const credSub = addGroup("credito", "PLAN FINANCIERO (Deudas)", true);
 
-    // Fila final de balance: Flujo Neto
     const netFlow = Array(12).fill(0).map((_, i) => {
       return inSub[i] - fixSub[i] - varSub[i] - credSub[i] - provSub[i];
     });
@@ -213,7 +213,6 @@ export default function Dashboard({ transactions, goals, contributions, investme
     rows.push(`"FLUJO NETO","", "",${netFlow.map(v => v === 0 ? "" : v).join(",")}`);
 
     const csvContent = rows.join("\n");
-    // Usamos BOM para que los acentos abran perfecto en Excel
     const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -226,11 +225,12 @@ export default function Dashboard({ transactions, goals, contributions, investme
 
   const rateColor = (v, good, ok) => (v >= good ? C.sage : v >= ok ? C.gold : C.coral);
 
+  // 5. ACTUALIZADO: Tarjetas de control de presupuesto leyendo las nuevas propiedades
   const budgetRows = [
-    { key: "fijos", label: "Gastos fijos", actual: totals.fijos, target: budget.fijos },
-    { key: "variables", label: "Gastos variables", actual: totals.variables, target: budget.variables },
-    { key: "creditos", label: "Créditos", actual: totals.creditos, target: budget.creditos },
-    { key: "provision", label: "Provisión", actual: totals.provision, target: budget.provision },
+    { key: "gastos_esenciales", label: "Gastos Esenciales", actual: totals.gastos_esenciales, target: budget?.gastos_esenciales || 0 },
+    { key: "gastos_no_esenciales", label: "Gastos No Esenciales", actual: totals.gastos_no_esenciales, target: budget?.gastos_no_esenciales || 0 },
+    { key: "creditos", label: "Créditos", actual: totals.creditos, target: budget?.creditos || 0 },
+    { key: "provision", label: "Provisión", actual: totals.provision, target: budget?.provision || 0 },
   ];
 
   const investTotal = investments.reduce((a, i) => a + netInvestmentValue(i), 0);
@@ -349,7 +349,7 @@ export default function Dashboard({ transactions, goals, contributions, investme
           <ProgressBar pct={pacing.timePct} color={C.inkFaint} />
 
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.inkSoft, fontWeight: 600, marginTop: 10, marginBottom: 4 }}>
-            <span>Consumo (Fijos + Var)</span>
+            <span>Consumo (Esenciales + No Esenc.)</span>
             <span style={{ color: pacing.isDanger ? C.coral : C.sage }}>{pacing.spentPct.toFixed(0)}% gastado</span>
           </div>
           <ProgressBar pct={pacing.spentPct} color={pacing.isDanger ? C.coral : C.sage} />

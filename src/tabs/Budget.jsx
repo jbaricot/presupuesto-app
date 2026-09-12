@@ -1,13 +1,8 @@
 /**
  * @file tabs/Budget.jsx
- * @description Configuración de topes de gasto por rubro (fijos, variables,
- * créditos, provisión), del día de pago, y de qué plataformas de inversión
- * forman el fondo de emergencia (usado por "meses de reserva cubiertos" en
- * el Panorama).
- * 
- * Arquitectura: recibe `budget` y `setBudget` desde App.jsx (no carga su
- * propio estado) — al guardar, actualiza el estado global, así el Panorama
- * refleja el cambio de tope de manera instantánea sin recargar la página.
+ * @description Configuración de topes de gasto por rubro (gastos esenciales, 
+ * gastos no esenciales, créditos, provisión), del día de pago, y de qué plataformas 
+ * de inversión forman el fondo de emergencia.
  */
 
 import React, { useState, useEffect } from "react";
@@ -15,7 +10,7 @@ import { Check } from "lucide-react";
 import { C } from "../theme.js";
 import { fmtCOP } from "../lib/helpers.js";
 import { Card, SectionTitle, PeriodNav, Field, inputStyle, Btn, ProgressBar } from "../components/ui.jsx";
-import { upsertBudget } from "../lib/data.js"; // Se eliminó fetchBudget ya que App.jsx lo maneja
+import { upsertBudget } from "../lib/data.js";
 
 export default function BudgetTab({ 
   userId, 
@@ -25,16 +20,16 @@ export default function BudgetTab({
   setPeriod = () => {}, 
   payDay = 1, 
   incomeAnchors = [],
-  budget,        // <-- Recibimos el estado global
-  setBudget      // <-- Recibimos el actualizador global
+  budget,
+  setBudget
 }) {
   const [form, setForm] = useState({
     provision: budget?.provision ?? 0,
-    fijos: budget?.fijos ?? 0,
+    gastos_esenciales: budget?.gastos_esenciales ?? 0,
+    gastos_no_esenciales: budget?.gastos_no_esenciales ?? 0,
     creditos: budget?.creditos ?? 0,
-    variables: budget?.variables ?? 0,
+    imprevistos: budget?.imprevistos ?? 0, // <-- NUEVO
     pay_day: budget?.pay_day ?? payDay ?? 1,
-    emergency_fund_platforms: budget?.emergency_fund_platforms ?? "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -50,14 +45,13 @@ export default function BudgetTab({
     setForm({ ...form, emergency_fund_platforms: next.join(", ") });
   };
 
-  // Sincronizar el formulario interno si el presupuesto global cambia
   useEffect(() => {
     if (budget) {
       setForm({
         provision: budget.provision ?? 0,
-        fijos: budget.fijos ?? 0,
+        gastos_esenciales: budget.gastos_esenciales ?? 0,
         creditos: budget.creditos ?? 0,
-        variables: budget.variables ?? 0,
+        gastos_no_esenciales: budget.gastos_no_esenciales ?? 0,
         pay_day: budget.pay_day ?? payDay ?? 1,
         emergency_fund_platforms: budget.emergency_fund_platforms ?? "",
       });
@@ -70,14 +64,14 @@ export default function BudgetTab({
     try {
       const updatedBudget = await upsertBudget(userId, {
         provision: Number(form.provision || 0),
-        fijos: Number(form.fijos || 0),
+        gastos_esenciales: Number(form.gastos_esenciales || 0),
         creditos: Number(form.creditos || 0),
-        variables: Number(form.variables || 0),
+        imprevistos: Number(form.imprevistos || 0),
+        gastos_no_esenciales: Number(form.gastos_no_esenciales || 0),
         pay_day: Number(form.pay_day || 1),
         emergency_fund_platforms: form.emergency_fund_platforms || null,
       });
       
-      // Actualizamos el estado de App.jsx para que afecte al Panorama al instante
       setBudget(updatedBudget); 
       alert("¡Presupuesto guardado con éxito!");
     } catch (err) {
@@ -87,19 +81,18 @@ export default function BudgetTab({
     }
   };
 
-  // Período de respaldo seguro si la app aún lo está cargando
   const activePeriod = period || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
-  // Filtrar y sumar transacciones reales del período activo por tipo
   const currentTx = transactions.filter(t => t.period === activePeriod);
   
-  const spentFijos = currentTx.filter(t => t.type === "fijo").reduce((a, b) => a + Number(b.value || 0), 0);
-  const spentVariables = currentTx.filter(t => t.type === "variable").reduce((a, b) => a + Number(b.value || 0), 0);
+  const spentEsenciales = currentTx.filter(t => t.type === "gastos_esenciales").reduce((a, b) => a + Number(b.value || 0), 0);
+  const spentNoEsenciales = currentTx.filter(t => t.type === "gastos_no_esenciales").reduce((a, b) => a + Number(b.value || 0), 0);
   const spentCreditos = currentTx.filter(t => t.type === "credito").reduce((a, b) => a + Number(b.value || 0), 0);
   const spentProvision = currentTx.filter(t => t.type === "provision").reduce((a, b) => a + Number(b.value || 0), 0);
+  const spentImprevistos = currentTx.filter(t => t.type === "imprevistos").reduce((a, b) => a + Number(b.value || 0), 0);
 
-  const totalSpent = spentFijos + spentVariables + spentCreditos + spentProvision;
-  const totalLimit = Number(form.fijos || 0) + Number(form.variables || 0) + Number(form.creditos || 0) + Number(form.provision || 0);
+  const totalSpent = spentEsenciales + spentNoEsenciales + spentCreditos + spentProvision + spentImprevistos;
+  const totalLimit = Number(form.gastos_esenciales || 0) + Number(form.gastos_no_esenciales || 0) + Number(form.creditos || 0) + Number(form.provision || 0) + Number(form.imprevistos || 0);
   const globalPct = totalLimit > 0 ? (totalSpent / totalLimit) * 100 : 0;
 
   return (
@@ -110,7 +103,6 @@ export default function BudgetTab({
         right={<PeriodNav period={activePeriod} setPeriod={setPeriod} payDay={payDay} incomeAnchors={incomeAnchors} />} 
       />
 
-      {/* Tarjetas Resumen */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 16 }}>
         <Card style={{ padding: 16 }}>
           <div style={{ fontSize: 11, color: C.inkSoft, fontWeight: 700 }}>GASTO REAL</div>
@@ -134,7 +126,6 @@ export default function BudgetTab({
 
       <div className="mlc-grid-form-l" style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: 16 }}>
         
-        {/* Formulario de Configuración */}
         <Card style={{ padding: 18 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, marginBottom: 12 }}>CONFIGURAR TOPES Y DÍA DE PAGO</div>
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -163,14 +154,14 @@ export default function BudgetTab({
               )}
             </Field>
             <div style={{ fontSize: 11, color: C.inkFaint, marginTop: -4 }}>
-              El Panorama sumará el saldo neto de estas plataformas para "Meses de reserva cubiertos", en vez de adivinar con el último registro de cualquier plataforma. Puedes marcar una o varias.
+              El Panorama sumará el saldo neto de estas plataformas para "Meses de reserva cubiertos". Puedes marcar una o varias.
             </div>
 
-            <Field label="Gastos Fijos">
-              <input type="number" min="0" style={inputStyle} value={form.fijos} onChange={e => setForm({...form, fijos: e.target.value})} disabled={saving} />
+            <Field label="Gastos Esenciales">
+              <input type="number" min="0" style={inputStyle} value={form.gastos_esenciales} onChange={e => setForm({...form, gastos_esenciales: e.target.value})} disabled={saving} />
             </Field>
-            <Field label="Gastos Variables">
-              <input type="number" min="0" style={inputStyle} value={form.variables} onChange={e => setForm({...form, variables: e.target.value})} disabled={saving} />
+            <Field label="Gastos No Esenciales">
+              <input type="number" min="0" style={inputStyle} value={form.gastos_no_esenciales} onChange={e => setForm({...form, gastos_no_esenciales: e.target.value})} disabled={saving} />
             </Field>
             <Field label="Créditos y Deudas">
               <input type="number" min="0" style={inputStyle} value={form.creditos} onChange={e => setForm({...form, creditos: e.target.value})} disabled={saving} />
@@ -184,13 +175,12 @@ export default function BudgetTab({
           </form>
         </Card>
 
-        {/* Monitoreo Visual */}
         <Card style={{ padding: 18 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, marginBottom: 12 }}>MONITOREO EN TIEMPO REAL</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {[
-              { label: "Gastos Fijos", spent: spentFijos, limit: Number(form.fijos || 0) },
-              { label: "Gastos Variables", spent: spentVariables, limit: Number(form.variables || 0) },
+              { label: "Gastos Esenciales", spent: spentEsenciales, limit: Number(form.gastos_esenciales || 0) },
+              { label: "Gastos No Esenciales", spent: spentNoEsenciales, limit: Number(form.gastos_no_esenciales || 0) },
               { label: "Créditos y Deudas", spent: spentCreditos, limit: Number(form.creditos || 0) },
               { label: "Provisiones y Ahorros", spent: spentProvision, limit: Number(form.provision || 0) },
             ].map(item => {

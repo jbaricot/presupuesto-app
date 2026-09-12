@@ -1,107 +1,118 @@
--- ============================================================
--- Mi Libro de Cuentas — esquema de base de datos (Supabase/Postgres)
--- Ejecuta esto completo en: Supabase → SQL Editor → New query → Run
--- ============================================================
+-- ==============================================================================
+-- ESQUEMA MAESTRO: MI LIBRO DE CUENTAS (MVP SaaS)
+-- ==============================================================================
 
-create extension if not exists pgcrypto;
+-- Habilitar extensión para UUIDs
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- ---------- CATEGORÍAS ----------
-create table if not exists categories (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  name text not null,
-  description text default '',
-  created_at timestamptz default now()
+-- --------------------------------------------------------
+-- 1. TABLA: Presupuesto (Budget)
+-- --------------------------------------------------------
+CREATE TABLE budget (
+  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  pay_day integer DEFAULT 1,
+  emergency_fund_platforms text, -- Ej: "Skandia, Colfondos"
+  gastos_esenciales numeric DEFAULT 0,
+  gastos_no_esenciales numeric DEFAULT 0,
+  creditos numeric DEFAULT 0,
+  provision numeric DEFAULT 0,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  UNIQUE(user_id)
 );
 
--- ---------- TRANSACCIONES ----------
-create table if not exists transactions (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  period text not null,             -- formato 'YYYY-MM'
+-- --------------------------------------------------------
+-- 2. TABLA: Categorías (Categories)
+-- --------------------------------------------------------
+CREATE TABLE categories (
+  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  name text NOT NULL,
+  type text, -- 'gastos_esenciales', 'gastos_no_esenciales', etc.
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- --------------------------------------------------------
+-- 3. TABLA: Transacciones (Transactions)
+-- --------------------------------------------------------
+CREATE TABLE transactions (
+  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  period text NOT NULL, -- Formato: 'YYYY-MM'
   date date,
-  name text not null,
-  type text not null check (type in ('ingreso','fijo','variable','credito','provision')),
-  category text default '',
-  payment_method text default '',
-  value numeric not null default 0,
-  paid boolean default false,
-  created_at timestamptz default now()
-);
-create index if not exists transactions_user_period_idx on transactions(user_id, period);
-
--- ---------- METAS ----------
-create table if not exists goals (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  name text not null,
-  target_total numeric not null default 0,
-  due_date date,
-  parent_goal_id uuid references goals(id) on delete cascade,  -- permite sub-metas dentro de una meta principal
-  created_at timestamptz default now()
+  name text NOT NULL,
+  type text NOT NULL,
+  category text,
+  payment_method text,
+  value numeric NOT NULL,
+  paid boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  CONSTRAINT transactions_type_check CHECK (type IN ('ingreso', 'gastos_esenciales', 'gastos_no_esenciales', 'credito', 'provision'))
 );
 
--- ---------- APORTES A METAS (y retiros: mismo registro con valor negativo) ----------
-create table if not exists goal_contributions (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  goal_id uuid not null references goals(id) on delete cascade,
-  period text not null,
-  value numeric not null default 0,
-  transaction_id uuid references transactions(id) on delete set null,  -- si el aporte se sincronizó como transacción
-  created_at timestamptz default now()
+-- --------------------------------------------------------
+-- 4. TABLA: Metas (Goals)
+-- --------------------------------------------------------
+CREATE TABLE goals (
+  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  parent_goal_id uuid REFERENCES goals(id) ON DELETE CASCADE, -- Para sub-metas
+  name text NOT NULL,
+  target_total numeric NOT NULL,
+  target_date date,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- ---------- INVERSIONES (seguimiento por plataforma: Nubank, Skandia, etc.) ----------
-create table if not exists investments (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  period text not null,
+-- --------------------------------------------------------
+-- 5. TABLA: Aportes a Metas (Goal Contributions)
+-- --------------------------------------------------------
+CREATE TABLE goal_contributions (
+  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  goal_id uuid REFERENCES goals(id) ON DELETE CASCADE NOT NULL,
+  transaction_id uuid REFERENCES transactions(id) ON DELETE CASCADE, -- Vínculo automático
+  period text NOT NULL,
+  value numeric NOT NULL,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- --------------------------------------------------------
+-- 6. TABLA: Inversiones (Investments)
+-- --------------------------------------------------------
+CREATE TABLE investments (
+  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  transaction_id uuid REFERENCES transactions(id) ON DELETE CASCADE, -- Vínculo automático
+  period text NOT NULL,
   date date,
-  platform text default 'General',
-  aporte numeric default 0,
-  retiros numeric default 0,
-  rendimientos numeric default 0,
-  costos numeric default 0,
-  transaction_id uuid references transactions(id) on delete set null,
-  -- columnas heredadas de la primera versión (se mantienen por compatibilidad con el dashboard)
-  reserva numeric default 0,
-  renta_fija numeric default 0,
-  renta_variable numeric default 0,
-  created_at timestamptz default now()
+  platform text,
+  aporte numeric DEFAULT 0,
+  retiros numeric DEFAULT 0,
+  rendimientos numeric DEFAULT 0,
+  costos numeric DEFAULT 0,
+  reserva numeric DEFAULT 0,
+  renta_fija numeric DEFAULT 0,
+  renta_variable numeric DEFAULT 0,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- ---------- PRESUPUESTO (una fila por usuario) ----------
-create table if not exists budget (
-  user_id uuid primary key references auth.users(id) on delete cascade,
-  provision numeric default 0,
-  fijos numeric default 0,
-  creditos numeric default 0,
-  variables numeric default 0,
-  pay_day integer not null default 1,  -- día del mes en que recibes tu ingreso principal (1 = mes calendario normal)
-  emergency_fund_platforms text,  -- nombres de investments.platform (separados por coma) que forman tu fondo de emergencia
-  updated_at timestamptz default now()
-);
+-- ==============================================================================
+-- POLÍTICAS DE SEGURIDAD RLS (Row Level Security)
+-- Garantiza que en la versión comercial un usuario jamás vea los datos de otro.
+-- ==============================================================================
 
--- ============================================================
--- ROW LEVEL SECURITY: cada usuario solo ve y edita sus propios datos
--- ============================================================
-alter table categories enable row level security;
-alter table transactions enable row level security;
-alter table goals enable row level security;
-alter table goal_contributions enable row level security;
-alter table investments enable row level security;
-alter table budget enable row level security;
+ALTER TABLE budget ENABLE ROW LEVEL SECURITY;
+ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE goals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE goal_contributions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE investments ENABLE ROW LEVEL SECURITY;
 
-create policy "own rows" on categories for all
-  using (auth.uid() = user_id) with check (auth.uid() = user_id);
-create policy "own rows" on transactions for all
-  using (auth.uid() = user_id) with check (auth.uid() = user_id);
-create policy "own rows" on goals for all
-  using (auth.uid() = user_id) with check (auth.uid() = user_id);
-create policy "own rows" on goal_contributions for all
-  using (auth.uid() = user_id) with check (auth.uid() = user_id);
-create policy "own rows" on investments for all
-  using (auth.uid() = user_id) with check (auth.uid() = user_id);
-create policy "own rows" on budget for all
-  using (auth.uid() = user_id) with check (auth.uid() = user_id);
+-- Crear política estándar para todas las tablas: "Solo el dueño puede ver y editar sus filas"
+CREATE POLICY "Users can manage their own budget" ON budget FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Users can manage their own categories" ON categories FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Users can manage their own transactions" ON transactions FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Users can manage their own goals" ON goals FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Users can manage their own goal contributions" ON goal_contributions FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Users can manage their own investments" ON investments FOR ALL USING (auth.uid() = user_id);

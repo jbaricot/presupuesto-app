@@ -12,9 +12,18 @@ import { C } from "../theme.js";
 import { fmtCompact } from "../lib/helpers.js";
 import { shiftPeriod, cyclePeriodLabelSmart } from "../lib/payCycle.js";
 
-export function Card({ children, style, ...rest }) {
+export function Card({ children, style, className }) {
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, ...style }} {...rest}>
+    <div 
+      className={className} 
+      style={{ 
+        background: C.paper, 
+        borderRadius: 16, // Bordes un poco más redondeados (moderno)
+        border: `1px solid ${C.line}`, // Borde ultra fino
+        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)", // Sombra SaaS
+        ...style 
+      }}
+    >
       {children}
     </div>
   );

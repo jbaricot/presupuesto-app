@@ -30,14 +30,14 @@ export async function seedDefaultCategories(userId, defaults) {
   return data;
 }
 
-export async function addCategory(userId, { name, desc }) {
-  const { data, error } = await supabase.from("categories").insert({ user_id: userId, name, description: desc }).select().single();
+export async function addCategory(userId, { name, type }) {
+  const { data, error } = await supabase.from("categories").insert({ user_id: userId, name, type }).select().single();
   if (error) throw error;
   return data;
 }
 
-export async function updateCategory(id, { name, desc }) {
-  const { data, error } = await supabase.from("categories").update({ name, description: desc }).eq("id", id).select().single();
+export async function updateCategory(id, { name, type }) {
+  const { data, error } = await supabase.from("categories").update({ name, type }).eq("id", id).select().single();
   if (error) throw error;
   return data;
 }

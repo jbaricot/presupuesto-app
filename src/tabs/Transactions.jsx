@@ -16,6 +16,8 @@
  * Importación masiva: el botón "Importar" abre <ImportModal/>, que parsea
  * extractos bancarios de Davivienda (.txt) y entrega filas ya normalizadas
  * a `handleSaveBulk` para insertarlas todas de una vez.
+ * Registro y listado de movimientos adaptado a los nuevos tipos:
+ * gastos_esenciales y gastos_no_esenciales.
  */
 import React, { useState, useEffect, useMemo } from "react";
 import { Plus, X, Pencil, Trash2, Upload, Download } from "lucide-react";
@@ -46,8 +48,9 @@ function sortTx(list, sortBy) {
   }
 }
 
+// ACTUALIZADO: El tipo por defecto ahora es gastos_no_esenciales
 function emptyTx(period) {
-  return { period, date: "", name: "", type: "variable", category: "", payment_method: "Débito", value: "", paid: false, allocation: "none", platform: "" };
+  return { period, date: "", name: "", type: "gastos_no_esenciales", category: "", payment_method: "Débito", value: "", paid: false, allocation: "none", platform: "" };
 }
 
 export default function TransactionsTab({
@@ -74,9 +77,16 @@ export default function TransactionsTab({
     return sortTx(filtered, sortBy);
   }, [transactions, period, filterType, filterCategory, sortBy]);
 
+  // ACTUALIZADO: Uso de los nuevos identificadores para las sumas
   const totals = useMemo(() => {
     const sum = (type) => transactions.filter((t) => t.period === period && t.type === type).reduce((a, t) => a + Number(t.value || 0), 0);
-    return { ingreso: sum("ingreso"), fijo: sum("fijo"), variable: sum("variable"), credito: sum("credito"), provision: sum("provision") };
+    return { 
+      ingreso: sum("ingreso"), 
+      gastos_esenciales: sum("gastos_esenciales"), 
+      gastos_no_esenciales: sum("gastos_no_esenciales"), 
+      credito: sum("credito"), 
+      provision: sum("provision") 
+    };
   }, [transactions, period]);
 
   const exportToCSV = () => {
@@ -143,7 +153,7 @@ export default function TransactionsTab({
               reserva: invType === "reserva" ? val : 0,
               renta_fija: invType === "renta_fija" ? val : 0,
               renta_variable: invType === "renta_variable" ? val : 0,
-              transaction_id: created.id, // vínculo para poder editar/borrar en conjunto desde cualquiera de las dos pestañas
+              transaction_id: created.id, 
             });
             setInvestments([...investments, newInv]);
           }
@@ -178,9 +188,6 @@ export default function TransactionsTab({
   const edit = (t) => { setForm({ ...t, value: String(t.value), allocation: "none", platform: "" }); setEditingId(t.id); };
 
   const remove = async (id) => {
-    // Si esta transacción originó un aporte de meta o un registro de inversión
-    // (vía la vinculación automática al crearla), hay que avisar y limpiarlo
-    // también — si no, queda un registro huérfano sin transacción de origen.
     const linkedContrib = contributions.find((c) => c.transaction_id === id);
     const linkedInv = investments.find((i) => i.transaction_id === id);
 
@@ -267,7 +274,12 @@ export default function TransactionsTab({
             </Field>
 
             <Field label="Tipo">
-              <select style={inputStyle} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} disabled={saving}>
+              <select 
+                style={inputStyle} 
+                value={form.type} 
+                onChange={(e) => setForm({ ...form, type: e.target.value, category: "" })} // <-- Magia 1: Limpia la categoría al cambiar el tipo
+                disabled={saving}
+              >
                 {TX_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
               </select>
             </Field>
@@ -307,7 +319,9 @@ export default function TransactionsTab({
               <Field label="Categoría">
                 <select style={inputStyle} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} disabled={saving}>
                   <option value="">Seleccionar...</option>
-                  {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                  {categories
+                    .filter((c) => !c.type || c.type === form.type) // <-- Magia 2: Filtra solo las categorías del tipo activo
+                    .map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
                 </select>
               </Field>
             )}
@@ -332,7 +346,8 @@ export default function TransactionsTab({
               <input type="number" min="0" style={inputStyle} value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} placeholder="0" required disabled={saving} />
             </Field>
 
-            {form.type === "fijo" && (
+            {/* ACTUALIZADO: El checkbox de pagado ahora se muestra para gastos esenciales */}
+            {form.type === "gastos_esenciales" && (
               <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.inkSoft, fontWeight: 600 }}>
                 <input type="checkbox" checked={form.paid} onChange={(e) => setForm({ ...form, paid: e.target.checked })} disabled={saving} /> ¿Pagado?
               </label>
@@ -350,7 +365,7 @@ export default function TransactionsTab({
             {TX_TYPES.map((t) => (
               <Card key={t.id} style={{ padding: "10px 12px" }}>
                 <div style={{ fontSize: 10.5, color: C.inkSoft, fontWeight: 700, letterSpacing: 0.3 }}>{t.label.toUpperCase()}</div>
-                <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 14, color: C.ink, marginTop: 3, fontWeight: 600 }}>{fmtCompact(totals[t.id])}</div>
+                <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 14, color: C.ink, marginTop: 3, fontWeight: 600 }}>{fmtCompact(totals[t.id] || 0)}</div>
               </Card>
             ))}
           </div>

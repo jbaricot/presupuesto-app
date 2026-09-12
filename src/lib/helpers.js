@@ -22,3 +22,12 @@ export const currentPeriod = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 };
+export const fmtCurrency = (v, currency = "COP") => {
+  const formats = {
+    COP: { style: "currency", currency: "COP", maximumFractionDigits: 0 },
+    USD: { style: "currency", currency: "USD", maximumFractionDigits: 2 },
+    EUR: { style: "currency", currency: "EUR", maximumFractionDigits: 2 }
+  };
+  const config = formats[currency] || formats.COP;
+  return new Intl.NumberFormat("es-CO", config).format(v || 0);
+};
