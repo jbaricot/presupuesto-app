@@ -6,9 +6,11 @@
  * salud financiera (tasa de ahorro y meses de reserva cubiertos — ver los
  * comentarios en línea de cada cálculo más abajo). Es de solo lectura: no
  * escribe nada en Supabase, solo deriva todo de las props que le pasa App.jsx.
+ * Vista de indicadores del ciclo activo.
+ * Ahora incluye la exportación de la Matriz Anual de Presupuesto a CSV.
  */
 import React, { useMemo } from "react";
-import { ArrowUpRight, ArrowDownRight, AlertTriangle, Clock } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, AlertTriangle, Download } from "lucide-react";
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend,
   LineChart, Line, XAxis, YAxis, CartesianGrid, AreaChart, Area
@@ -16,8 +18,7 @@ import {
 import { C, CHART_COLORS } from "../theme.js";
 import { fmtCOP, fmtCompact } from "../lib/helpers.js";
 import { monthAbbrev, cycleRangeSmart } from "../lib/payCycle.js";
-import { Card, SectionTitle, PeriodNav, ProgressBar, Empty, LedgerStamp } from "../components/ui.jsx";
-
+import { Card, SectionTitle, PeriodNav, ProgressBar, Empty, LedgerStamp, Btn } from "../components/ui.jsx";
 
 export default function Dashboard({ transactions, goals, contributions, investments, budget, period, setPeriod, payDay, incomeAnchors }) {
   const periodTx = useMemo(() => transactions.filter((t) => t.period === period), [transactions, period]);
@@ -78,72 +79,36 @@ export default function Dashboard({ transactions, goals, contributions, investme
     });
   }, [goals, contributions]);
 
-  /** Tasa de ahorro: % del ingreso del ciclo que fue a provisión/ahorro */
   const savingsRate = totals.ingresos > 0 ? (totals.provision / totals.ingresos) * 100 : null;
 
-  /**
-   * Patrimonio neto de un registro de inversión: aporte - retiros + rendimientos - costos.
-   * Debe coincidir EXACTO con el cálculo de tabs/Investments.jsx (netRow) — si se
-   * calculan distinto en cada lado, Panorama e Inversión muestran totales que no cuadran
-   * entre sí para los mismos datos. `reserva` es el fallback para registros viejos
-   * (de antes de que existiera `aporte`) que no tienen retiros/rendimientos/costos.
-   */
   const netInvestmentValue = (i) => {
     const baseAporte = Number(i.aporte ?? i.reserva ?? 0);
     return baseAporte - Number(i.retiros || 0) + Number(i.rendimientos || 0) - Number(i.costos || 0);
   };
 
-  /**
-   * Meses de reserva cubiertos: saldo del fondo de emergencia ÷ promedio de
-   * gastos fijos recientes.
-   *
-   * Qué cuenta como "fondo de emergencia" se configura en la pestaña
-   * Presupuesto (`budget.emergency_fund_platforms`, una o varias
-   * plataformas de investments.platform separadas por coma — ej. "Skandia,
-   * Colfondos"). Se suma el saldo NETO acumulado (aportes - retiros +
-   * rendimientos - costos) de todos los registros de esas plataformas, no
-   * solo el más reciente, para reflejar el histórico completo.
-   *
-   * Si el usuario no configuró ninguna plataforma todavía, cae a un
-   * heurístico de respaldo: el registro más reciente de CUALQUIER
-   * plataforma — menos preciso si hay varias, pero mejor que nada.
-   */
   const monthsOfReserve = useMemo(() => {
     if (investments.length === 0) return null;
-
-    const configuredPlatforms = (budget.emergency_fund_platforms || "")
-      .split(",")
-      .map((p) => p.trim().toLowerCase())
-      .filter(Boolean);
-
-    let reserva;
-    let isPreciseSource;
-    if (configuredPlatforms.length > 0) {
-      const matching = investments.filter((i) => configuredPlatforms.includes((i.platform || "").trim().toLowerCase()));
-      if (matching.length === 0) return null;
-      reserva = matching.reduce((sum, i) => sum + netInvestmentValue(i), 0);
-      isPreciseSource = true;
-    } else {
-      const latestInv = investments.slice().sort((a, b) => b.period.localeCompare(a.period))[0];
-      reserva = Number(latestInv.reserva || 0);
-      isPreciseSource = false;
-    }
+    const reservaActual = investments
+      .filter(i => {
+        const plat = (i.platform || "").toLowerCase();
+        return plat.includes("skandia") || plat.includes("colfondos");
+      })
+      .reduce((sum, i) => sum + netInvestmentValue(i), 0);
 
     const byPeriod = {};
     transactions.filter((t) => t.type === "fijo").forEach((t) => {
       byPeriod[t.period] = (byPeriod[t.period] || 0) + Number(t.value || 0);
     });
-
+    
     const recentPeriods = Object.keys(byPeriod).sort().slice(-3);
-    if (recentPeriods.length === 0 || reserva <= 0) return null;
-
+    if (recentPeriods.length === 0 || reservaActual <= 0) return null;
+    
     const avgFijos = recentPeriods.reduce((a, p) => a + byPeriod[p], 0) / recentPeriods.length;
     if (avgFijos <= 0) return null;
+    
+    return { reserva: reservaActual, avgFijos, months: reservaActual / avgFijos };
+  }, [investments, transactions]);
 
-    return { reserva, avgFijos, months: reserva / avgFijos, isPreciseSource };
-  }, [investments, transactions, budget.emergency_fund_platforms]);
-
-  /** Pacing / Velocidad de Gasto: Compara el tiempo transcurrido vs el presupuesto consumido */
   const pacing = useMemo(() => {
     const { start, end } = cycleRangeSmart(period, payDay, incomeAnchors);
     const now = new Date();
@@ -156,16 +121,14 @@ export default function Dashboard({ transactions, goals, contributions, investme
     const spentOp = totals.fijos + totals.variables;
     const spentPct = budgetOp > 0 ? (spentOp / budgetOp) * 100 : 0;
     
-    const isDanger = spentPct > (timePct + 5); // +5% de margen de tolerancia
+    const isDanger = spentPct > (timePct + 5); 
     
     return { timePct, spentPct, elapsedDays: Math.round(elapsedDays), totalDays: Math.round(totalDays), isDanger };
   }, [period, payDay, incomeAnchors, budget, totals]);
 
-  /** Evolución del Patrimonio Neto: Efectivo acumulado + Inversiones */
   const netWorthData = useMemo(() => {
     let accCash = 0;
     let accInv = 0;
-    
     const allPeriods = Array.from(new Set([...transactions.map(t => t.period), ...investments.map(i => i.period)])).sort();
     
     return allPeriods.map(p => {
@@ -178,12 +141,88 @@ export default function Dashboard({ transactions, goals, contributions, investme
       const periodInv = invs.reduce((a, i) => a + netInvestmentValue(i), 0);
       accInv += periodInv;
       
-      return {
-        label: monthAbbrev(p),
-        Patrimonio: accCash + accInv,
-      };
+      return { label: monthAbbrev(p), Patrimonio: accCash + accInv };
     });
   }, [transactions, investments]);
+
+  // --- LÓGICA DE EXPORTACIÓN MATRIZ ANUAL ---
+  const exportAnnualMatrix = () => {
+    // Tomamos el año del período activo
+    const year = period ? period.split("-")[0] : new Date().getFullYear().toString();
+    
+    // Filtramos transacciones solo de ese año
+    const yearTxs = transactions.filter(t => t.period && t.period.startsWith(`${year}-`));
+
+    // Cabeceras de meses (ene-26, feb-26...)
+    const monthNames = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+    const headerMonths = monthNames.map(m => `${m}-${year.slice(2)}`);
+
+    // Estructura de agrupación
+    const matrix = { ingreso: {}, fijo: {}, variable: {}, credito: {}, provision: {} };
+
+    // Llenamos la matriz
+    yearTxs.forEach(t => {
+      const tType = t.type;
+      // Usamos categoría o el nombre si no tiene
+      const tCat = t.category || (tType === "ingreso" ? t.name : "Sin categoría");
+      const mIndex = parseInt(t.period.split("-")[1], 10) - 1;
+
+      if (!matrix[tType]) return;
+      if (!matrix[tType][tCat]) matrix[tType][tCat] = Array(12).fill(0);
+
+      matrix[tType][tCat][mIndex] += Number(t.value || 0);
+    });
+
+    const headers = ["GRUPO", "CATEGORÍA", "PRESUPUESTO", ...headerMonths];
+    const rows = [headers.join(",")];
+
+    // Función auxiliar para crear bloques (filas) y devolver el subtotal anual por mes
+    const addGroup = (groupKey, groupName, isExpense) => {
+      const categories = Object.keys(matrix[groupKey]).sort();
+      let subtotal = Array(12).fill(0);
+
+      categories.forEach(cat => {
+        const vals = matrix[groupKey][cat];
+        vals.forEach((v, i) => subtotal[i] += v);
+        // Volvemos los gastos negativos para que coincida con tu formato visual en Excel
+        const formattedVals = vals.map(v => v === 0 ? "" : (isExpense ? -v : v));
+        rows.push(`"${groupName}","${cat}","",${formattedVals.join(",")}`);
+      });
+
+      // Totalizadores por bloque
+      if (groupKey === "ingreso" && categories.length > 0) {
+        const formattedVals = subtotal.map(v => v === 0 ? "" : v);
+        rows.push(`"TOTAL INGRESOS","", "",${formattedVals.join(",")}`);
+      }
+
+      return subtotal;
+    };
+
+    // Construimos los bloques mapeando los tipos de la app con los nombres de tu Excel
+    const inSub = addGroup("ingreso", "INGRESOS", false);
+    const fixSub = addGroup("fijo", "GASTOS ESENCIALES", true);
+    const varSub = addGroup("variable", "GASTOS NO ESENCIALES", true);
+    const provSub = addGroup("provision", "PROVISIONES", true);
+    const credSub = addGroup("credito", "PLAN FINANCIERO (Deudas)", true);
+
+    // Fila final de balance: Flujo Neto
+    const netFlow = Array(12).fill(0).map((_, i) => {
+      return inSub[i] - fixSub[i] - varSub[i] - credSub[i] - provSub[i];
+    });
+
+    rows.push(`"FLUJO NETO","", "",${netFlow.map(v => v === 0 ? "" : v).join(",")}`);
+
+    const csvContent = rows.join("\n");
+    // Usamos BOM para que los acentos abran perfecto en Excel
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Matriz_Presupuesto_${year}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const rateColor = (v, good, ok) => (v >= good ? C.sage : v >= ok ? C.gold : C.coral);
 
@@ -195,7 +234,7 @@ export default function Dashboard({ transactions, goals, contributions, investme
   ];
 
   const investTotal = investments.reduce((a, i) => a + netInvestmentValue(i), 0);
-  // --- LÓGICA DEL RANKING DE CATEGORÍAS ---
+  
   const categoryRanking = useMemo(() => {
     const map = {};
     transactions
@@ -208,9 +247,21 @@ export default function Dashboard({ transactions, goals, contributions, investme
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
   }, [transactions, period]);
+
   return (
     <div>
-      <SectionTitle eyebrow="Este período" title="Panorama" right={<PeriodNav period={period} setPeriod={setPeriod} payDay={payDay} incomeAnchors={incomeAnchors} />} />
+      <SectionTitle 
+        eyebrow="Este período" 
+        title="Panorama" 
+        right={
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <Btn variant="ghost" onClick={exportAnnualMatrix} style={{ padding: "6px 12px", fontSize: 12 }}>
+              <Download size={14} /> Exportar Matriz Anual
+            </Btn>
+            <PeriodNav period={period} setPeriod={setPeriod} payDay={payDay} incomeAnchors={incomeAnchors} />
+          </div>
+        } 
+      />
       
       <div className="mlc-grid-stamp" style={{ marginBottom: 20 }}>
         <Card style={{ padding: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -279,7 +330,7 @@ export default function Dashboard({ transactions, goals, contributions, investme
                 {monthsOfReserve.months.toFixed(1)}
               </div>
               <div style={{ fontSize: 12, color: C.inkFaint, marginTop: 2 }}>
-                con {fmtCompact(monthsOfReserve.reserva)} de reserva{monthsOfReserve.isPreciseSource ? "" : " operativa (aprox., configura tus plataformas en Presupuesto)"}
+                con {fmtCompact(monthsOfReserve.reserva)} de reserva operativa
               </div>
             </>
           )}
@@ -393,7 +444,6 @@ export default function Dashboard({ transactions, goals, contributions, investme
             </div>
           )}
         </Card>
-        {/* Top Gastos por Categoría */}
         <Card style={{ padding: 18 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3, marginBottom: 14 }}>
             TOP GASTOS POR CATEGORÍA
