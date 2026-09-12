@@ -26,7 +26,7 @@ function emptyInv(period) {
   return { 
     period, 
     date: "", 
-    platform: "S", 
+    platform: "", 
     aporte: "", 
     retiros: "", 
     rendimientos: "", 
