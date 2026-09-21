@@ -80,11 +80,26 @@ export function Btn({ children, onClick, variant = "primary", type = "button", s
   );
 }
 
+// En src/components/ui.jsx (o donde tengas declarada tu ProgressBar)
 export function ProgressBar({ pct, color }) {
-  const clamped = Math.min(pct, 100);
+  // Garantizamos que el valor sea un número entre 0 y 100
+  const safePct = Math.min(Math.max(Number(pct) || 0, 0), 100);
+
   return (
-    <div style={{ height: 8, borderRadius: 5, background: C.paperAlt, overflow: "hidden" }}>
-      <div style={{ width: `${clamped}%`, height: "100%", background: color, borderRadius: 5, transition: "width .3s" }} />
+    <div style={{ 
+      width: "100%", // Obligatorio para que la proporción interna funcione
+      background: "#E5E7EB", // Color de fondo (Gris claro)
+      height: 8, 
+      borderRadius: 4, 
+      overflow: "hidden" 
+    }}>
+      <div style={{ 
+        width: `${safePct}%`, // Inyección del porcentaje real
+        background: color || "#10B981", // Color principal (Esmeralda por defecto)
+        height: "100%", 
+        borderRadius: 4,
+        transition: "width 0.4s ease-in-out" // Animación fluida al cargar
+      }} />
     </div>
   );
 }
