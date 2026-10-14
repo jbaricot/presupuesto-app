@@ -113,3 +113,12 @@ insert into access_codes (code, days) values ('BONO90', 90);
 4. Al vencer, la persona pasa a **solo lectura**: puede ver y exportar sus datos (CSV), pero la base de datos rechaza cualquier escritura (RLS).
 
 Para dar acceso permanente a alguien: `update user_access set status = 'active', trial_ends_at = null where user_id = '...';`
+
+---
+
+## 6. Legal y cuenta (Ley 1581)
+
+1. **Orden de despliegue:** ejecuta `supabase/migration_v6_legal_y_cuenta.sql` en Supabase **antes** de publicar esta versión en Vercel. Después de v5, es idempotente.
+2. Completa los campos `[COMPLETAR: …]` de `LEGAL` en `src/lib/legal.js` (responsable, documento, domicilio, correo y región de los servidores) y haz revisar los textos por un abogado. En desarrollo (`npm run dev`) la consola avisa qué campos faltan.
+3. La casilla de aceptación del registro guarda la versión y la fecha (`user_access.terms_version` / `terms_accepted_at`, la fecha la pone el servidor). Quien ya tenía cuenta ve una pantalla para aceptar antes de seguir. Si cambias los textos de forma importante, sube `TERMS_VERSION` y todos tendrán que aceptar de nuevo.
+4. **Mi perfil** (botón arriba a la derecha): cambiar contraseña, descargar copia de los datos (JSON), ver los textos legales, cerrar sesión y **eliminar el perfil con todos sus datos** (función `delete_my_account`, que borra al usuario y, por cascada, todas sus filas). Funciona también con el acceso vencido.

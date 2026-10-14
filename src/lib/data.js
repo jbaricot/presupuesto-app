@@ -29,6 +29,18 @@ export async function activateTrial(code) {
   return data;
 }
 
+export async function acceptTerms(version) {
+  const { data, error } = await supabase.rpc("accept_terms", { p_version: version });
+  if (error) throw error;
+  return data;
+}
+
+/** Elimina la cuenta y, por cascada, TODOS los datos del usuario. Irreversible. */
+export async function deleteMyAccount() {
+  const { error } = await supabase.rpc("delete_my_account");
+  if (error) throw error;
+}
+
 /* ============ CATEGORÍAS ============ */
 export async function fetchCategories(userId) {
   const { data, error } = await supabase.from("categories").select("*").eq("user_id", userId).order("created_at");

@@ -15,16 +15,20 @@
  *
  * Todas las mutaciones (agregar/editar/borrar) ocurren dentro de cada
  * pestaña, que llama a lib/data.js y luego actualiza el estado que vive
- *   5. Gestión de cuenta (Cerrar sesión, Cambiar clave).
+ *   5. Gestión de cuenta: menú Mi perfil (cambiar clave, descargar datos,
+ *      textos legales, cerrar sesión, eliminar perfil).
  */
 import React, { useState, useEffect, useMemo } from "react";
-import { LayoutDashboard, Receipt, Target, TrendingUp, Tags, SlidersHorizontal, Wallet, LogOut, Key, Loader2, X, Check } from "lucide-react";
+import { LayoutDashboard, Receipt, Target, TrendingUp, Tags, SlidersHorizontal, Wallet, LogOut, Key, Loader2, X, Check, User } from "lucide-react";
 import { supabase } from "./supabaseClient.js";
 import { C, FONTS, DEFAULT_CATEGORIES, DEFAULT_BUDGET } from "./theme.js";
 import { currentPeriod, getIncomeAnchors } from "./lib/payCycle.js";
 import Login from "./components/Login.jsx";
 import ActivationScreen from "./components/ActivationScreen.jsx";
 import Onboarding from "./components/Onboarding.jsx";
+import ConsentScreen from "./components/ConsentScreen.jsx";
+import ProfileModal from "./components/ProfileModal.jsx";
+import { TERMS_VERSION, LEGAL_PENDING } from "./lib/legal.js";
 import { captureBonoFromUrl, getStoredBono, clearStoredBono, describeAccess } from "./lib/access.js";
 import Dashboard from "./tabs/Dashboard.jsx";
 import TransactionsTab from "./tabs/Transactions.jsx";
@@ -37,6 +41,10 @@ import {
   fetchCategories, seedDefaultCategories, fetchTransactions, fetchGoals,
   fetchContributions, fetchInvestments, fetchBudget, fetchAccess, activateTrial,
 } from "./lib/data.js";
+
+if (import.meta.env.DEV && LEGAL_PENDING.length) {
+  console.warn("[legal] Faltan campos por completar en src/lib/legal.js:", LEGAL_PENDING.join(", "));
+}
 
 // Si la persona abrió el enlace del bono (?bono=CODIGO), se guarda el código
 // antes de que cree su cuenta o inicie sesión.
@@ -57,6 +65,8 @@ export default function App() {
   const [loadError, setLoadError] = useState("");
   const [access, setAccess] = useState(null); // fila de user_access (null = sin fila)
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [notice, setNotice] = useState("");
   const [tab, setTab] = useState("dashboard");
   const [period, setPeriod] = useState(currentPeriod(1));
   const [periodInitialized, setPeriodInitialized] = useState(false);
@@ -137,7 +147,9 @@ export default function App() {
         clearStoredBono();
       }
       setAccess(acc);
-      if (acc && acc.status !== "pending") await loadAll(acc);
+      // Los datos solo se cargan si ya aceptó la versión vigente de los textos legales.
+      const consentOk = acc && acc.terms_version === TERMS_VERSION;
+      if (acc && consentOk && acc.status !== "pending") await loadAll(acc);
     } catch (err) {
       setLoadError(err?.message || "No se pudieron cargar tus datos.");
     }
@@ -148,6 +160,29 @@ export default function App() {
     if (!userId) return;
     startLoad();
   }, [userId]);
+
+  // Después de aceptar los Términos y la Política de datos
+  const handleConsent = async (row) => {
+    setAccess(row);
+    if (row.status === "pending") return; // seguirá la pantalla de activación
+    setLoadingData(true);
+    setLoadError("");
+    try { await loadAll(row); } catch (err) { setLoadError(err?.message || "No se pudieron cargar tus datos."); }
+    setLoadingData(false);
+  };
+
+  // Después de eliminar el perfil: se limpia todo lo que había en memoria.
+  const handleDeleted = async () => {
+    try { await supabase.auth.signOut({ scope: "local" }); } catch { /* la cuenta ya no existe */ }
+    setIsProfileOpen(false);
+    setAccess(null);
+    setNeedsOnboarding(false);
+    setCategories([]); setTransactions([]); setGoals([]); setContributions([]); setInvestments([]);
+    setBudget(DEFAULT_BUDGET);
+    setPeriodInitialized(false);
+    setNotice("Tu perfil y todos tus datos fueron eliminados.");
+    setSession(null);
+  };
 
   // Después de activar el código manualmente
   const handleActivated = async (row) => {
@@ -199,7 +234,7 @@ export default function App() {
     );
   }
 
-  if (!session) return <Login />;
+  if (!session) return <Login notice={notice} />;
 
   if (loadingData) {
     return (
@@ -229,6 +264,9 @@ export default function App() {
   }
 
   const accessInfo = describeAccess(access);
+  if (access && access.terms_version !== TERMS_VERSION) {
+    return <ConsentScreen onAccepted={handleConsent} onSignOut={signOut} />;
+  }
   if (accessInfo.state === "pending") {
     return <ActivationScreen onActivated={handleActivated} onSignOut={signOut} />;
   }
@@ -255,6 +293,23 @@ export default function App() {
     <div style={{ minHeight: "100vh", background: C.paperAlt, fontFamily: "'Inter',sans-serif" }}>
       <style>{FONTS}</style>
       <div className="mlc-shell" style={{ maxWidth: 1100, margin: "0 auto", padding: "26px 20px 60px" }}>
+
+        {/* Menú Mi perfil */}
+        {isProfileOpen && (
+          <ProfileModal
+            email={session.user.email}
+            accessInfo={accessInfo}
+            access={access}
+            exportData={{
+              categorias: categories, transacciones: transactions, metas: goals,
+              aportes_a_metas: contributions, inversiones: investments, presupuesto: budget,
+            }}
+            onChangePassword={() => { setIsProfileOpen(false); setIsPasswordModalOpen(true); }}
+            onSignOut={signOut}
+            onDeleted={handleDeleted}
+            onClose={() => setIsProfileOpen(false)}
+          />
+        )}
 
         {/* Modal Cambio de Clave */}
         {isPasswordModalOpen && (
@@ -338,11 +393,8 @@ export default function App() {
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <button onClick={() => setIsPasswordModalOpen(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: `1px solid ${C.line}`, borderRadius: 7, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, color: C.inkSoft, cursor: "pointer" }}>
-                  <Key size={13} /> Cambiar clave
-                </button>
-                <button onClick={signOut} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: `1px solid ${C.line}`, borderRadius: 7, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, color: C.inkSoft, cursor: "pointer" }}>
-                  <LogOut size={13} /> {session.user.email}
+                <button onClick={() => setIsProfileOpen(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: `1px solid ${C.line}`, borderRadius: 7, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, color: C.inkSoft, cursor: "pointer", maxWidth: 260 }}>
+                  <User size={13} /> <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Mi perfil · {session.user.email}</span>
                 </button>
               </div>
             </div>

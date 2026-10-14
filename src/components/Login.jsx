@@ -13,28 +13,34 @@ import { C, FONTS } from "../theme.js";
 import { supabase } from "../supabaseClient.js";
 import { inputStyle, Btn } from "./ui.jsx";
 import { getStoredBono } from "../lib/access.js";
+import { TERMS_VERSION } from "../lib/legal.js";
+import LegalModal from "./LegalModal.jsx";
 
-export default function Login() {
+export default function Login({ notice = "" }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState(getStoredBono() ? "register" : "login"); // login | register
   const [confirm, setConfirm] = useState("");
+  const [accepted, setAccepted] = useState(false);
+  const [legalDoc, setLegalDoc] = useState(null);
   const [status, setStatus] = useState("idle"); // idle | sending | error | confirm
   const [errorMsg, setErrorMsg] = useState("");
   const hasBono = Boolean(getStoredBono());
 
-  const switchMode = (m) => { setMode(m); setStatus("idle"); setErrorMsg(""); setConfirm(""); };
+  const switchMode = (m) => { setMode(m); setStatus("idle"); setErrorMsg(""); setConfirm(""); setAccepted(false); };
 
   const submitRegister = async (e) => {
     e.preventDefault();
     setErrorMsg("");
     if (password.length < 6) { setStatus("error"); setErrorMsg("La contraseña debe tener al menos 6 caracteres."); return; }
     if (password !== confirm) { setStatus("error"); setErrorMsg("Las contraseñas no coinciden."); return; }
+    if (!accepted) { setStatus("error"); setErrorMsg("Debes aceptar los Términos y la Política de datos para crear tu cuenta."); return; }
     setStatus("sending");
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: { emailRedirectTo: window.location.origin },
+      // terms_version viaja solo si marcó la casilla; el servidor guarda versión y fecha.
+      options: { emailRedirectTo: window.location.origin, data: { terms_version: TERMS_VERSION } },
     });
     if (error) {
       setStatus("error");
@@ -62,6 +68,8 @@ export default function Login() {
     setStatus("idle");
   };
 
+  const linkBtn = { background: "none", border: "none", padding: 0, cursor: "pointer", color: C.ink, textDecoration: "underline", fontSize: "inherit", fontFamily: "inherit" };
+
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: C.paperAlt, fontFamily: "'Inter',sans-serif", padding: 16, boxSizing: "border-box" }}>
       <style>{FONTS}</style>
@@ -72,6 +80,8 @@ export default function Login() {
           </div>
           <div style={{ fontFamily: "'Fraunces',serif", fontSize: 20, fontWeight: 600, color: C.ink }}>Mi Libro de Cuentas</div>
         </div>
+
+        {notice && <div style={{ fontSize: 13, color: C.sage, fontWeight: 600, marginBottom: 14 }}>{notice}</div>}
 
         {status === "confirm" ? (
           <div style={{ fontSize: 14, color: C.inkSoft, lineHeight: 1.6 }}>
@@ -104,6 +114,17 @@ export default function Login() {
                   style={{ ...inputStyle, width: "100%", marginTop: 6, boxSizing: "border-box" }} />
               </label>
             )}
+            {mode === "register" && (
+              <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12.5, color: C.inkSoft, lineHeight: 1.5, cursor: "pointer" }}>
+                <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} style={{ marginTop: 3 }} />
+                <span>
+                  Acepto los{" "}
+                  <button type="button" onClick={() => setLegalDoc("terms")} style={linkBtn}>Términos de uso</button>
+                  {" "}y autorizo el tratamiento de mis datos según la{" "}
+                  <button type="button" onClick={() => setLegalDoc("policy")} style={linkBtn}>Política de datos</button>.
+                </span>
+              </label>
+            )}
             {status === "error" && <div style={{ fontSize: 12.5, color: C.coral }}>{errorMsg}</div>}
             <Btn type="submit" disabled={status === "sending"} style={{ justifyContent: "center" }}>
               {status === "sending" ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Lock size={14} />}
@@ -115,6 +136,14 @@ export default function Login() {
             </button>
           </form>
         )}
+        {mode === "login" && status !== "confirm" && (
+          <div style={{ marginTop: 16, fontSize: 11.5, color: C.inkFaint, textAlign: "center" }}>
+            <button type="button" onClick={() => setLegalDoc("terms")} style={linkBtn}>Términos de uso</button>
+            {" · "}
+            <button type="button" onClick={() => setLegalDoc("policy")} style={linkBtn}>Política de datos</button>
+          </div>
+        )}
+        {legalDoc && <LegalModal doc={legalDoc} onClose={() => setLegalDoc(null)} />}
         <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>
       </div>
     </div>
