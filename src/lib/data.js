@@ -16,6 +16,19 @@
  */
 import { supabase } from "../supabaseClient.js";
 
+/* ============ ACCESO (bono de prueba) ============ */
+export async function fetchAccess(userId) {
+  const { data, error } = await supabase.from("user_access").select("*").eq("user_id", userId).maybeSingle();
+  if (error) throw error;
+  return data; // null si la migración v5 aún no corrió o el trigger no creó la fila
+}
+
+export async function activateTrial(code) {
+  const { data, error } = await supabase.rpc("activate_trial", { p_code: code });
+  if (error) throw error;
+  return data;
+}
+
 /* ============ CATEGORÍAS ============ */
 export async function fetchCategories(userId) {
   const { data, error } = await supabase.from("categories").select("*").eq("user_id", userId).order("created_at");
@@ -24,7 +37,8 @@ export async function fetchCategories(userId) {
 }
 
 export async function seedDefaultCategories(userId, defaults) {
-  const rows = defaults.map((c) => ({ user_id: userId, name: c.name, description: c.desc }));
+  // La tabla `categories` solo tiene name/type (no hay columna description).
+  const rows = defaults.map((c) => ({ user_id: userId, name: c.name, type: c.type }));
   const { data, error } = await supabase.from("categories").insert(rows).select();
   if (error) throw error;
   return data;

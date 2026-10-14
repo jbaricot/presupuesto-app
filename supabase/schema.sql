@@ -116,3 +116,6 @@ CREATE POLICY "Users can manage their own transactions" ON transactions FOR ALL 
 CREATE POLICY "Users can manage their own goals" ON goals FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "Users can manage their own goal contributions" ON goal_contributions FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "Users can manage their own investments" ON investments FOR ALL USING (auth.uid() = user_id);
+-- NOTA: las políticas definitivas de las 6 tablas (incluida `investments`) y el
+-- control de acceso de prueba están en supabase/migration_v5_acceso_y_rls.sql.
+-- En un proyecto nuevo, ejecuta ese archivo justo después de este esquema.

@@ -23,6 +23,8 @@ import { supabase } from "./supabaseClient.js";
 import { C, FONTS, DEFAULT_CATEGORIES, DEFAULT_BUDGET } from "./theme.js";
 import { currentPeriod, getIncomeAnchors } from "./lib/payCycle.js";
 import Login from "./components/Login.jsx";
+import ActivationScreen from "./components/ActivationScreen.jsx";
+import { captureBonoFromUrl, getStoredBono, clearStoredBono, describeAccess } from "./lib/access.js";
 import Dashboard from "./tabs/Dashboard.jsx";
 import TransactionsTab from "./tabs/Transactions.jsx";
 import GoalsTab from "./tabs/Goals.jsx";
@@ -32,8 +34,12 @@ import BudgetTab from "./tabs/Budget.jsx";
 import { Card, inputStyle, Btn, Field } from "./components/ui.jsx";
 import {
   fetchCategories, seedDefaultCategories, fetchTransactions, fetchGoals,
-  fetchContributions, fetchInvestments, fetchBudget,
+  fetchContributions, fetchInvestments, fetchBudget, fetchAccess, activateTrial,
 } from "./lib/data.js";
+
+// Si la persona abrió el enlace del bono (?bono=CODIGO), se guarda el código
+// antes de que cree su cuenta o inicie sesión.
+captureBonoFromUrl();
 
 const NAV = [
   { id: "dashboard", label: "Panorama", icon: LayoutDashboard },
@@ -47,6 +53,8 @@ const NAV = [
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = checking, null = logged out
   const [loadingData, setLoadingData] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [access, setAccess] = useState(null); // fila de user_access (null = sin fila)
   const [tab, setTab] = useState("dashboard");
   const [period, setPeriod] = useState(currentPeriod(1));
   const [periodInitialized, setPeriodInitialized] = useState(false);
@@ -89,30 +97,62 @@ export default function App() {
 
   const userId = session?.user?.id;
 
+  // Carga todos los datos del usuario (solo se llama con acceso ya activado).
+  const loadAll = async (acc) => {
+    let cats = await fetchCategories(userId);
+    // Solo se siembran categorías si el usuario puede escribir.
+    if (cats.length === 0 && describeAccess(acc).canWrite) {
+      cats = await seedDefaultCategories(userId, DEFAULT_CATEGORIES);
+    }
+    const [txs, gls, contribs, invs, bdg] = await Promise.all([
+      fetchTransactions(userId), fetchGoals(userId), fetchContributions(userId),
+      fetchInvestments(userId), fetchBudget(userId),
+    ]);
+    setCategories(cats);
+    setTransactions(txs);
+    setGoals(gls);
+    setContributions(contribs);
+    setInvestments(invs);
+    const finalBudget = bdg || DEFAULT_BUDGET;
+    setBudget(finalBudget);
+    if (!periodInitialized) {
+      setPeriod(currentPeriod(finalBudget.pay_day || 1));
+      setPeriodInitialized(true);
+    }
+  };
+
+  const startLoad = async () => {
+    setLoadingData(true);
+    setLoadError("");
+    try {
+      let acc = await fetchAccess(userId);
+      // Si abrió el enlace del bono en este navegador, se activa solo.
+      const stored = getStoredBono();
+      if (stored && (!acc || acc.status === "pending")) {
+        try { acc = await activateTrial(stored); } catch { /* código inválido: lo pedirá la pantalla de activación */ }
+        clearStoredBono();
+      }
+      setAccess(acc);
+      if (acc && acc.status !== "pending") await loadAll(acc);
+    } catch (err) {
+      setLoadError(err?.message || "No se pudieron cargar tus datos.");
+    }
+    setLoadingData(false);
+  };
+
   useEffect(() => {
     if (!userId) return;
-    (async () => {
-      setLoadingData(true);
-      let cats = await fetchCategories(userId);
-      if (cats.length === 0) cats = await seedDefaultCategories(userId, DEFAULT_CATEGORIES);
-      const [txs, gls, contribs, invs, bdg] = await Promise.all([
-        fetchTransactions(userId), fetchGoals(userId), fetchContributions(userId),
-        fetchInvestments(userId), fetchBudget(userId),
-      ]);
-      setCategories(cats);
-      setTransactions(txs);
-      setGoals(gls);
-      setContributions(contribs);
-      setInvestments(invs);
-      const finalBudget = bdg || DEFAULT_BUDGET;
-      setBudget(finalBudget);
-      if (!periodInitialized) {
-        setPeriod(currentPeriod(finalBudget.pay_day || 1));
-        setPeriodInitialized(true);
-      }
-      setLoadingData(false);
-    })();
+    startLoad();
   }, [userId]);
+
+  // Después de activar el código manualmente
+  const handleActivated = async (row) => {
+    setAccess(row);
+    setLoadingData(true);
+    setLoadError("");
+    try { await loadAll(row); } catch (err) { setLoadError(err?.message || "No se pudieron cargar tus datos."); }
+    setLoadingData(false);
+  };
 
   const payDay = budget.pay_day || 1;
   const incomeAnchors = useMemo(() => getIncomeAnchors(transactions), [transactions]);
@@ -166,6 +206,27 @@ export default function App() {
         <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>
       </div>
     );
+  }
+
+  if (loadError) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: C.paperAlt, fontFamily: "'Inter',sans-serif", padding: 16 }}>
+        <style>{FONTS}</style>
+        <Card style={{ maxWidth: 400, padding: 24 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.ink, marginBottom: 8 }}>No pudimos cargar tus datos</div>
+          <div style={{ fontSize: 13, color: C.inkSoft, marginBottom: 16 }}>{loadError}</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Btn onClick={startLoad}>Reintentar</Btn>
+            <Btn variant="ghost" onClick={signOut}>Cerrar sesión</Btn>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  const accessInfo = describeAccess(access);
+  if (accessInfo.state === "pending") {
+    return <ActivationScreen onActivated={handleActivated} onSignOut={signOut} />;
   }
 
   return (
@@ -228,6 +289,18 @@ export default function App() {
                 </div>
               </form>
             </Card>
+          </div>
+        )}
+
+        {(accessInfo.state === "expired" || (accessInfo.state === "trial" && accessInfo.daysLeft <= 14)) && (
+          <div style={{
+            marginBottom: 12, padding: "10px 14px", borderRadius: 8, fontSize: 13, lineHeight: 1.5,
+            background: accessInfo.state === "expired" ? C.coralSoft : C.paper,
+            border: `1px solid ${accessInfo.state === "expired" ? C.coral : C.line}`, color: C.ink,
+          }}>
+            {accessInfo.state === "expired"
+              ? "Tu acceso de prueba venció. Puedes ver y exportar tus datos, pero ya no registrar cambios."
+              : `Tu acceso de prueba vence en ${accessInfo.daysLeft} ${accessInfo.daysLeft === 1 ? "día" : "días"}.`}
           </div>
         )}
 

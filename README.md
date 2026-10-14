@@ -31,7 +31,7 @@ ALTER TABLE investments ADD COLUMN IF NOT EXISTS costos NUMERIC DEFAULT 0;
 
 ```
 
-1. Ve a **Authentication → Providers → Email** y confirma que esté habilitado. La app usa solo correo + contraseña. Crea tu usuario en **Authentication → Users → Add user**, y en **Authentication → Sign In / Providers** desactiva *Allow new users to sign up* para que nadie más pueda registrarse.
+1. Ve a **Authentication → Providers → Email** y confirma que esté habilitado. La app usa correo + contraseña. Deja habilitado *Allow new users to sign up* (y, recomendado, *Confirm email*): crear una cuenta NO da acceso a escribir datos, porque cada cuenta nueva nace `pending` y solo se activa con el código del bono (ver sección *Acceso de prueba*).
 
 2. Ve a **Project Settings → API** y copia:
 
@@ -94,3 +94,22 @@ Abre `http://localhost:5173` en tu navegador.
 * `VITE_SUPABASE_ANON_KEY`
 
 1. Despliega. Vercel te asignará una URL pública.
+
+
+---
+
+## 5. Acceso de prueba (bono de 90 días)
+
+1. Ejecuta `supabase/migration_v5_acceso_y_rls.sql` en el SQL Editor (es idempotente). Los usuarios que ya existen quedan como `active`, sin vencimiento.
+2. Crea el código del bono:
+
+```sql
+insert into access_codes (code, days) values ('BONO90', 90);
+-- opcional: límite de usos
+-- update access_codes set max_uses = 500 where code = 'BONO90';
+```
+
+3. El enlace que va en el ebook es `https://TU-APP.vercel.app/?bono=BONO90`. La persona crea su cuenta y el bono se activa solo (si abre el enlace de confirmación del correo en el mismo navegador); si no, la app le pide el código.
+4. Al vencer, la persona pasa a **solo lectura**: puede ver y exportar sus datos (CSV), pero la base de datos rechaza cualquier escritura (RLS).
+
+Para dar acceso permanente a alguien: `update user_access set status = 'active', trial_ends_at = null where user_id = '...';`
