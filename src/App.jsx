@@ -24,6 +24,7 @@ import { C, FONTS, DEFAULT_CATEGORIES, DEFAULT_BUDGET } from "./theme.js";
 import { currentPeriod, getIncomeAnchors } from "./lib/payCycle.js";
 import Login from "./components/Login.jsx";
 import ActivationScreen from "./components/ActivationScreen.jsx";
+import Onboarding from "./components/Onboarding.jsx";
 import { captureBonoFromUrl, getStoredBono, clearStoredBono, describeAccess } from "./lib/access.js";
 import Dashboard from "./tabs/Dashboard.jsx";
 import TransactionsTab from "./tabs/Transactions.jsx";
@@ -55,6 +56,7 @@ export default function App() {
   const [loadingData, setLoadingData] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [access, setAccess] = useState(null); // fila de user_access (null = sin fila)
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [tab, setTab] = useState("dashboard");
   const [period, setPeriod] = useState(currentPeriod(1));
   const [periodInitialized, setPeriodInitialized] = useState(false);
@@ -115,6 +117,8 @@ export default function App() {
     setInvestments(invs);
     const finalBudget = bdg || DEFAULT_BUDGET;
     setBudget(finalBudget);
+    // Usuario nuevo: sin presupuesto guardado y sin movimientos → bienvenida guiada.
+    setNeedsOnboarding(!bdg && txs.length === 0 && describeAccess(acc).canWrite);
     if (!periodInitialized) {
       setPeriod(currentPeriod(finalBudget.pay_day || 1));
       setPeriodInitialized(true);
@@ -227,6 +231,24 @@ export default function App() {
   const accessInfo = describeAccess(access);
   if (accessInfo.state === "pending") {
     return <ActivationScreen onActivated={handleActivated} onSignOut={signOut} />;
+  }
+
+  if (needsOnboarding && accessInfo.canWrite) {
+    return (
+      <Onboarding
+        userId={userId}
+        categories={categories}
+        setCategories={setCategories}
+        onFinish={({ budget: newBudget, transaction }) => {
+          setBudget(newBudget);
+          if (transaction) setTransactions([transaction, ...transactions]);
+          setPeriod(currentPeriod(newBudget.pay_day || 1));
+          setPeriodInitialized(true);
+          setTab(transaction ? "dashboard" : "transacciones");
+          setNeedsOnboarding(false);
+        }}
+      />
+    );
   }
 
   return (
