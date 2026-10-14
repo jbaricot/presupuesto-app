@@ -62,7 +62,24 @@ export default function App() {
   // Estados para el Modal de Cambio de Clave
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordMsg, setPasswordMsg] = useState(null); // { type: "error" | "ok", text }
   const [updatingPassword, setUpdatingPassword] = useState(false);
+
+  const closePasswordModal = () => {
+    setIsPasswordModalOpen(false);
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordMsg(null);
+  };
+
+  // Cerrar el modal con Escape
+  useEffect(() => {
+    if (!isPasswordModalOpen) return;
+    const onKey = (e) => { if (e.key === "Escape" && !updatingPassword) closePasswordModal(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isPasswordModalOpen, updatingPassword]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -105,8 +122,13 @@ export default function App() {
   // Función para procesar el cambio de contraseña
   const handleUpdatePassword = async (e) => {
     e.preventDefault();
+    setPasswordMsg(null);
     if (newPassword.length < 6) {
-      alert("La contraseña debe tener al menos 6 caracteres.");
+      setPasswordMsg({ type: "error", text: "La contraseña debe tener al menos 6 caracteres." });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordMsg({ type: "error", text: "Las contraseñas no coinciden." });
       return;
     }
     setUpdatingPassword(true);
@@ -114,11 +136,11 @@ export default function App() {
     setUpdatingPassword(false);
 
     if (error) {
-      alert("Error al actualizar la clave: " + error.message);
+      setPasswordMsg({ type: "error", text: "Error al actualizar la clave: " + error.message });
     } else {
-      alert("¡Tu contraseña ha sido actualizada con éxito!");
-      setIsPasswordModalOpen(false);
       setNewPassword("");
+      setConfirmPassword("");
+      setPasswordMsg({ type: "ok", text: "¡Tu contraseña fue actualizada con éxito!" });
     }
   };
 
@@ -158,13 +180,13 @@ export default function App() {
             backgroundColor: "rgba(0,0,0,0.6)", zIndex: 9999,
             display: "flex", justifyContent: "center", alignItems: "center", padding: 20,
             backdropFilter: "blur(2px)"
-          }}>
+          }} onMouseDown={(e) => { if (e.target === e.currentTarget && !updatingPassword) closePasswordModal(); }}>
             <Card style={{ width: "100%", maxWidth: 360, padding: 24 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <div style={{ fontSize: 16, fontWeight: 700, color: C.ink, display: "flex", alignItems: "center", gap: 6 }}>
                   <Key size={18} color={C.gold} /> Cambiar Contraseña
                 </div>
-                <button onClick={() => setIsPasswordModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: C.inkFaint }}>
+                <button onClick={closePasswordModal} style={{ background: "none", border: "none", cursor: "pointer", color: C.inkFaint }}>
                   <X size={20} />
                 </button>
               </div>
@@ -175,14 +197,31 @@ export default function App() {
                     required
                     minLength={6}
                     style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
+                    autoComplete="new-password"
                     placeholder="Mínimo 6 caracteres"
                     value={newPassword}
                     onChange={e => setNewPassword(e.target.value)}
                     disabled={updatingPassword}
                   />
                 </Field>
+                <Field label="Confirmar Contraseña">
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
+                    autoComplete="new-password"
+                    placeholder="Repite la contraseña"
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    disabled={updatingPassword}
+                  />
+                </Field>
+                {passwordMsg && (
+                  <div style={{ fontSize: 12.5, color: passwordMsg.type === "error" ? C.coral : C.sage }}>{passwordMsg.text}</div>
+                )}
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
-                  <Btn variant="ghost" onClick={() => setIsPasswordModalOpen(false)} disabled={updatingPassword}>Cancelar</Btn>
+                  <Btn variant="ghost" onClick={closePasswordModal} disabled={updatingPassword}>{passwordMsg?.type === "ok" ? "Cerrar" : "Cancelar"}</Btn>
                   <Btn type="submit" disabled={updatingPassword}>
                     {updatingPassword ? "Actualizando..." : <><Check size={14} /> Guardar</>}
                   </Btn>

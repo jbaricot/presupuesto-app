@@ -116,65 +116,67 @@ export default function InvestmentsTab({ userId, investments, setInvestments, pa
   }, [investments, period, selectedPlatformFilter]);
 
   // Función para exportar el resumen anual tipo Excel
+  // - Separador ";" (Excel en español lo abre en columnas) y decimales con coma.
+  // - "Total" arranca desde el saldo acumulado de años anteriores (Saldo inicial).
   const exportInvestmentsCSV = () => {
     const year = period ? period.split("-")[0] : new Date().getFullYear().toString();
-    
-    const filtered = selectedPlatformFilter === "todos" 
-      ? investments 
+
+    const filtered = selectedPlatformFilter === "todos"
+      ? investments
       : investments.filter(i => (i.platform || "General") === selectedPlatformFilter);
 
     const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-    
-    let runningTotal = 0;
+    const sumOf = (list, key) => list.reduce((sum, i) => sum + Number(key === "aporte" ? (i.aporte || i.reserva || 0) : (i[key] || 0)), 0);
+    const netOf = (list) => sumOf(list, "aporte") - sumOf(list, "retiros") + sumOf(list, "rendimientos") - sumOf(list, "costos");
+
+    // Saldo acumulado de todos los periodos anteriores al año exportado
+    const openingBalance = netOf(filtered.filter(i => i.period && i.period < `${year}-01`));
+
+    let runningTotal = openingBalance;
     let totalAporteSum = 0;
     let totalRetirosSum = 0;
     let totalRendimientosSum = 0;
     let totalCostosSum = 0;
 
     const rows = monthNames.map((monthName, idx) => {
-      const monthNum = String(idx + 1).padStart(2, "0");
-      const periodKey = `${year}-${monthNum}`;
-
+      const periodKey = `${year}-${String(idx + 1).padStart(2, "0")}`;
       const monthInvs = filtered.filter(i => i.period === periodKey);
 
-      const aporte = monthInvs.reduce((sum, i) => sum + Number(i.aporte || i.reserva || 0), 0);
-      const retiros = monthInvs.reduce((sum, i) => sum + Number(i.retiros || 0), 0);
-      const rendimientos = monthInvs.reduce((sum, i) => sum + Number(i.rendimientos || 0), 0);
-      const costos = monthInvs.reduce((sum, i) => sum + Number(i.costos || 0), 0);
+      const aporte = sumOf(monthInvs, "aporte");
+      const retiros = sumOf(monthInvs, "retiros");
+      const rendimientos = sumOf(monthInvs, "rendimientos");
+      const costos = sumOf(monthInvs, "costos");
 
-      const netPeriod = aporte - retiros + rendimientos - costos;
-      runningTotal += netPeriod;
+      runningTotal += aporte - retiros + rendimientos - costos;
 
       totalAporteSum += aporte;
       totalRetirosSum += retiros;
       totalRendimientosSum += rendimientos;
       totalCostosSum += costos;
 
-      return [
-        monthName,
-        aporte,
-        retiros,
-        rendimientos,
-        runningTotal,
-        -costos
-      ];
+      return [monthName, aporte, retiros, rendimientos, runningTotal, -costos];
     });
 
     const headers = ["Mes", "Aporte", "Retiros", "Rendimientos", "Total", "Costos"];
-    const summaryRow = ["Total", totalAporteSum, totalRetirosSum, totalRendimientosSum, runningTotal, -totalCostosSum];
+    const openingRow = ["Saldo inicial", "", "", "", openingBalance, ""];
+    const summaryRow = ["Total año", totalAporteSum, totalRetirosSum, totalRendimientosSum, runningTotal, -totalCostosSum];
 
-    const csvContent = [headers.join(","), ...rows.map(r => r.join(",")), summaryRow.join(",")].join("\n");
-    
+    const fmtCell = (v) => (typeof v === "number" ? String(v).replace(".", ",") : v);
+    const toLine = (r) => r.map(fmtCell).join(";");
+    const csvContent = [toLine(headers), toLine(openingRow), ...rows.map(toLine), toLine(summaryRow)].join("\r\n");
+
     // BOM para soporte UTF-8 en Excel
     const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    
+
+    const safePlatform = String(selectedPlatformFilter).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9_-]+/g, "_");
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `resumen_inversiones_${year}_${selectedPlatformFilter}.csv`);
+    link.setAttribute("download", `resumen_inversiones_${year}_${safePlatform}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const submit = async (e) => {

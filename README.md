@@ -31,7 +31,7 @@ ALTER TABLE investments ADD COLUMN IF NOT EXISTS costos NUMERIC DEFAULT 0;
 
 ```
 
-1. Ve a **Authentication → Providers → Email** y confirma que esté habilitado. Puedes usar acceso por enlace (magic link) o contraseña.
+1. Ve a **Authentication → Providers → Email** y confirma que esté habilitado. La app usa solo correo + contraseña. Crea tu usuario en **Authentication → Users → Add user**, y en **Authentication → Sign In / Providers** desactiva *Allow new users to sign up* para que nadie más pueda registrarse.
 
 2. Ve a **Project Settings → API** y copia:
 
