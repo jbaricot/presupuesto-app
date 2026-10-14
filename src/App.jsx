@@ -423,7 +423,18 @@ export default function App() {
 
           <div className="mlc-card-pad" style={{ padding: 26 }}>
             {tab === "dashboard" && (
-              <Dashboard transactions={transactions} goals={goals} contributions={contributions} investments={investments} budget={budget} period={period} setPeriod={setPeriod} payDay={payDay} incomeAnchors={incomeAnchors} />
+              <Dashboard 
+                transactions={transactions} 
+                goals={goals} 
+                contributions={contributions} 
+                investments={investments} 
+                budget={budget} 
+                period={period} 
+                setPeriod={setPeriod} 
+                payDay={payDay} 
+                incomeAnchors={incomeAnchors} 
+                userData={access} // <--- CAMBIADO DE userData={userData} A userData={access}
+              />
             )}
             {tab === "transacciones" && (
               <TransactionsTab

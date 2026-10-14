@@ -12,6 +12,7 @@
  * gastos_esenciales y gastos_no_esenciales.
  */
 import React, { useMemo } from "react";
+import TrialBanner from '../components/TrialBanner';
 import { ArrowUpRight, ArrowDownRight, AlertTriangle, Download } from "lucide-react";
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend,
@@ -22,7 +23,8 @@ import { fmtCOP, fmtCompact } from "../lib/helpers.js";
 import { monthAbbrev, cycleRangeSmart } from "../lib/payCycle.js";
 import { Card, SectionTitle, PeriodNav, ProgressBar, Empty, LedgerStamp, Btn } from "../components/ui.jsx";
 
-export default function Dashboard({ transactions, goals, contributions, investments, budget, period, setPeriod, payDay, incomeAnchors }) {
+// SE AGREGÓ: 'userData' en las props para poder leer el trial_ends_at
+export default function Dashboard({ transactions, goals, contributions, investments, budget, period, setPeriod, payDay, incomeAnchors, userData }) {
   const periodTx = useMemo(() => transactions.filter((t) => t.period === period), [transactions, period]);
   
   // 1. ACTUALIZADO: Sumas usando los nuevos IDs de tipos de gasto
@@ -179,7 +181,6 @@ export default function Dashboard({ transactions, goals, contributions, investme
     });
 
     // CSV con ";" como separador y coma decimal (Excel en español).
-    // Texto entrecomillado si trae ; " o saltos de línea; se neutralizan = + - @ iniciales.
     const text = (v) => {
       let str = String(v ?? "");
       if (/^[=+\-@]/.test(str)) str = "'" + str;
@@ -261,6 +262,9 @@ export default function Dashboard({ transactions, goals, contributions, investme
 
   return (
     <div>
+      {/* SE AGREGÓ: El banner superior que lee la fecha de prueba del usuario */}
+      <TrialBanner trialEndsAt={userData?.trial_ends_at} />
+
       <SectionTitle 
         eyebrow="Este período" 
         title="Panorama" 

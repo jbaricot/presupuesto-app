@@ -31,3 +31,16 @@ export const fmtCurrency = (v, currency = "COP") => {
   const config = formats[currency] || formats.COP;
   return new Intl.NumberFormat("es-CO", config).format(v || 0);
 };
+
+// En src/lib/helpers.js
+export const calculateDaysLeft = (trialEndsAt) => {
+  if (!trialEndsAt) return null;
+  const endDate = new Date(trialEndsAt);
+  const today = new Date();
+  
+  // Calcula la diferencia en milisegundos y la convierte a días
+  const diffTime = endDate - today;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+  
+  return diffDays;
+};
