@@ -12,7 +12,6 @@
  * gastos_esenciales y gastos_no_esenciales.
  */
 import React, { useMemo } from "react";
-import TrialBanner from '../components/TrialBanner';
 import { ArrowUpRight, ArrowDownRight, AlertTriangle, Download } from "lucide-react";
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend,
@@ -23,8 +22,7 @@ import { fmtCOP, fmtCompact } from "../lib/helpers.js";
 import { monthAbbrev, cycleRangeSmart } from "../lib/payCycle.js";
 import { Card, SectionTitle, PeriodNav, ProgressBar, Empty, LedgerStamp, Btn } from "../components/ui.jsx";
 
-// SE AGREGÓ: 'userData' en las props para poder leer el trial_ends_at
-export default function Dashboard({ transactions, goals, contributions, investments, budget, period, setPeriod, payDay, incomeAnchors, userData }) {
+export default function Dashboard({ transactions, goals, contributions, investments, budget, period, setPeriod, payDay, incomeAnchors }) {
   const periodTx = useMemo(() => transactions.filter((t) => t.period === period), [transactions, period]);
   
   // 1. ACTUALIZADO: Sumas usando los nuevos IDs de tipos de gasto
@@ -102,10 +100,8 @@ export default function Dashboard({ transactions, goals, contributions, investme
     const reservaActual = investments
       .filter(i => {
         const plat = (i.platform || "").toLowerCase();
-        if (emergencyPlatforms.length > 0) {
-          return emergencyPlatforms.some(ep => plat.includes(ep));
-        }
-        return plat.includes("skandia") || plat.includes("colfondos");
+        // Solo cuenta lo que la persona marcó como fondo de emergencia en Presupuesto.
+        return emergencyPlatforms.some(ep => plat.includes(ep));
       })
       .reduce((sum, i) => sum + netInvestmentValue(i), 0);
 
@@ -262,9 +258,6 @@ export default function Dashboard({ transactions, goals, contributions, investme
 
   return (
     <div>
-      {/* SE AGREGÓ: El banner superior que lee la fecha de prueba del usuario */}
-      <TrialBanner trialEndsAt={userData?.trial_ends_at} />
-
       <SectionTitle 
         eyebrow="Este período" 
         title="Panorama" 
@@ -338,7 +331,11 @@ export default function Dashboard({ transactions, goals, contributions, investme
         <Card style={{ padding: "16px 18px" }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: 0.3, marginBottom: 4 }}>MESES DE RESERVA CUBIERTOS</div>
           {monthsOfReserve === null ? (
-            <div style={{ fontSize: 12.5, color: C.inkFaint, marginTop: 8 }}>Registra tu reserva e histórico de fijos para calcularlo.</div>
+            <div style={{ fontSize: 12.5, color: C.inkFaint, marginTop: 8 }}>
+              {budget?.emergency_fund_platforms
+                ? "Registra tu reserva e histórico de fijos para calcularlo."
+                : "Indica en Presupuesto la plataforma donde guardas tu fondo de emergencia para calcularlo."}
+            </div>
           ) : (
             <>
               <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 28, fontWeight: 600, color: rateColor(monthsOfReserve.months, 3, 1) }}>

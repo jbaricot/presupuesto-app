@@ -10,6 +10,8 @@
  * en localStorage al abrir el enlace, porque el usuario todavía tiene que
  * crear la cuenta (y a veces confirmar el correo) antes de poder activarlo.
  */
+import { LEGAL } from "./legal.js";
+
 const KEY = "mlc_bono";
 
 export function captureBonoFromUrl() {
@@ -39,4 +41,21 @@ export function describeAccess(row) {
   const ms = new Date(row.trial_ends_at).getTime() - Date.now();
   if (ms > 0) return { state: "trial", daysLeft: Math.ceil(ms / 86400000), canWrite: true };
   return { state: "expired", daysLeft: 0, canWrite: false };
+}
+
+/**
+ * Guard de escritura en el cliente. App.jsx lo actualiza cada vez que cambia
+ * el acceso. La base de datos ya rechaza las escrituras (RLS); esto evita el
+ * error técnico y, sobre todo, que un borrado "parezca" funcionar en pantalla
+ * cuando la base no borró nada (RLS no devuelve error en los DELETE).
+ */
+let writable = true;
+export function setWriteAccess(value) { writable = Boolean(value); }
+export function assertWritable() {
+  if (!writable) {
+    throw new Error(
+      "Tu acceso de prueba venció y tu cuenta está en modo solo lectura: puedes ver y exportar tus datos, pero no registrar cambios. " +
+      `Para renovar escríbenos a ${LEGAL.correo}.`
+    );
+  }
 }

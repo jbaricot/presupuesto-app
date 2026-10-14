@@ -148,7 +148,7 @@ export default function BudgetTab({
                   style={inputStyle}
                   value={form.emergency_fund_platforms}
                   onChange={e => setForm({ ...form, emergency_fund_platforms: e.target.value })}
-                  placeholder="Ej. Skandia, Colfondos (aún no tienes plataformas en Inversión)"
+                  placeholder="Nombre de la plataforma de tu fondo de emergencia (aún no tienes plataformas en Inversión)"
                   disabled={saving}
                 />
               )}

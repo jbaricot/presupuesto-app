@@ -122,3 +122,11 @@ Para dar acceso permanente a alguien: `update user_access set status = 'active',
 2. Completa los campos `[COMPLETAR: …]` de `LEGAL` en `src/lib/legal.js` (responsable, documento, domicilio, correo y región de los servidores) y haz revisar los textos por un abogado. En desarrollo (`npm run dev`) la consola avisa qué campos faltan.
 3. La casilla de aceptación del registro guarda la versión y la fecha (`user_access.terms_version` / `terms_accepted_at`, la fecha la pone el servidor). Quien ya tenía cuenta ve una pantalla para aceptar antes de seguir. Si cambias los textos de forma importante, sube `TERMS_VERSION` y todos tendrán que aceptar de nuevo.
 4. **Mi perfil** (botón arriba a la derecha): cambiar contraseña, descargar copia de los datos (JSON), ver los textos legales, cerrar sesión y **eliminar el perfil con todos sus datos** (función `delete_my_account`, que borra al usuario y, por cascada, todas sus filas). Funciona también con el acceso vencido.
+
+---
+
+## 7. Esquema y orden de migraciones
+
+En un proyecto nuevo ejecuta, en este orden: `schema.sql`, `migration_v2…`, `v3…`, `v4…`, `v5_acceso_y_rls`, `v6_legal_y_cuenta` y `v7_alinear_esquema` (todas son idempotentes). `v7` agrega las columnas de `budget` que la app ya usaba (`imprevistos`, `emergency_fund_platforms`), cierra la función del trigger y deja una política explícita en `access_codes`. Después corre `auditoria_seguridad.sql`: los chequeos 1 al 12 deben salir en `OK`.
+
+Con el acceso vencido (solo lectura) el cliente bloquea cualquier escritura con un mensaje claro (`assertWritable` en `lib/access.js`), además de la protección de la base de datos.

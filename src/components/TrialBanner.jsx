@@ -1,64 +1,53 @@
-import React from 'react';
-import { AlertTriangle, Clock, Info } from 'lucide-react';
-import { calculateDaysLeft } from '../lib/helpers';
+/**
+ * components/TrialBanner.jsx
+ * ─────────────────────────────────────────────────────────────────────────
+ * Aviso único del acceso de prueba (se muestra en toda la app, desde App.jsx).
+ *   · prueba con más de 14 días  → línea discreta con los días restantes
+ *   · 14 días o menos            → ámbar; 3 días o menos → rojo
+ *   · vencida                    → solo lectura + cómo renovar
+ * Props: accessInfo ({ state, daysLeft }) de describeAccess()
+ */
+import React from "react";
+import { Info, Clock, AlertTriangle } from "lucide-react";
+import { C } from "../theme.js";
+import { LEGAL } from "../lib/legal.js";
 
-export default function TrialBanner({ trialEndsAt }) {
-  const daysLeft = calculateDaysLeft(trialEndsAt);
+export default function TrialBanner({ accessInfo }) {
+  if (!accessInfo || (accessInfo.state !== "trial" && accessInfo.state !== "expired")) return null;
 
-  // Si no hay fecha de vencimiento (cuentas permanentes), no mostramos el banner
-  if (daysLeft === null) return null;
+  let tone, Icon, title, text;
 
-  // ESTADO: Prueba vencida (Modo solo lectura)
-  if (daysLeft <= 0) {
-    return (
-      <div className="flex items-start p-4 mb-6 border rounded-lg shadow-sm bg-gray-50 border-gray-300 text-gray-800" style={{ marginBottom: 20 }}>
-        <AlertTriangle className="w-5 h-5 mr-3 flex-shrink-0 mt-0.5 text-gray-600" />
-        <div className="flex-1">
-          <h4 className="font-semibold text-sm md:text-base mb-1">Prueba finalizada</h4>
-          <p className="text-xs md:text-sm opacity-90 leading-relaxed">
-            Tu acceso ha expirado y tu cuenta está en <strong>solo lectura</strong>. Puedes ver y exportar tus datos, pero no registrar nuevos.
-          </p>
-        </div>
-        <button className="ml-4 px-4 py-2 text-xs md:text-sm font-bold text-white rounded shadow-sm bg-blue-600 hover:bg-blue-700">
-          Renovar Acceso
-        </button>
-      </div>
-    );
-  }
-
-  // ESTADO: Prueba activa (Muestra siempre los días restantes con colores dinámicos)
-  const isUrgent = daysLeft <= 3;
-  const isWarning = daysLeft > 3 && daysLeft <= 10;
-  
-  let bannerColor = 'bg-blue-50 border-blue-200 text-blue-800';
-  let buttonColor = 'bg-blue-600 hover:bg-blue-700';
-  let Icon = Info;
-  let title = 'Acceso de prueba activo';
-
-  if (isUrgent) {
-    bannerColor = 'bg-red-50 border-red-200 text-red-800';
-    buttonColor = 'bg-red-600 hover:bg-red-700';
+  if (accessInfo.state === "expired") {
+    tone = { bg: C.coralSoft, border: C.coral, fg: C.ink };
     Icon = AlertTriangle;
-    title = '¡Tu acceso de prueba está por terminar!';
-  } else if (isWarning) {
-    bannerColor = 'bg-yellow-50 border-yellow-200 text-yellow-800';
-    buttonColor = 'bg-yellow-600 hover:bg-yellow-700';
-    Icon = Clock;
-    title = 'Aviso de vencimiento de prueba';
+    title = "Prueba finalizada";
+    text = (
+      <>
+        Tu cuenta está en <strong>solo lectura</strong>: puedes ver y exportar tus datos, pero no registrar cambios. Para renovar tu acceso escríbenos a{" "}
+        <a href={`mailto:${LEGAL.correo}`} style={{ color: C.ink, fontWeight: 600 }}>{LEGAL.correo}</a>.
+      </>
+    );
+  } else {
+    const d = accessInfo.daysLeft;
+    const label = `${d} ${d === 1 ? "día" : "días"}`;
+    if (d <= 3) { tone = { bg: C.coralSoft, border: C.coral, fg: C.ink }; Icon = AlertTriangle; title = "¡Tu acceso de prueba está por terminar!"; }
+    else if (d <= 14) { tone = { bg: C.goldSoft, border: C.gold, fg: C.ink }; Icon = Clock; title = "Tu acceso de prueba vence pronto"; }
+    else { tone = { bg: C.card, border: C.line, fg: C.inkSoft }; Icon = Info; title = null; }
+    text = title
+      ? <>Te quedan <strong>{label}</strong> de acceso completo. Al vencer, tu cuenta pasará a modo de solo lectura.</>
+      : <>Acceso de prueba: te quedan <strong>{label}</strong>.</>;
   }
 
   return (
-    <div className={`flex items-start p-4 mb-6 border rounded-lg shadow-sm ${bannerColor}`} style={{ marginBottom: 20 }}>
-      <Icon className="w-5 h-5 mr-3 flex-shrink-0 mt-0.5" />
-      <div className="flex-1">
-        <h4 className="font-semibold text-sm md:text-base mb-1">{title}</h4>
-        <p className="text-xs md:text-sm opacity-90 leading-relaxed">
-          Te quedan <strong>{daysLeft} días</strong> de acceso completo. Al vencer, tu cuenta pasará a modo de solo lectura.
-        </p>
+    <div role="status" style={{
+      display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12, padding: title ? "12px 14px" : "8px 14px",
+      borderRadius: 8, border: `1px solid ${tone.border}`, background: tone.bg, color: tone.fg, fontSize: 13, lineHeight: 1.5,
+    }}>
+      <Icon size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+      <div>
+        {title && <div style={{ fontWeight: 700, marginBottom: 2 }}>{title}</div>}
+        <div>{text}</div>
       </div>
-{/*       <button className={`ml-4 px-4 py-2 text-xs md:text-sm font-bold text-white rounded transition-colors shadow-sm ${buttonColor}`}>
-        Renovar Acceso
-      </button> */}
     </div>
   );
 }

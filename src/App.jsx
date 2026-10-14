@@ -29,7 +29,8 @@ import Onboarding from "./components/Onboarding.jsx";
 import ConsentScreen from "./components/ConsentScreen.jsx";
 import ProfileModal from "./components/ProfileModal.jsx";
 import { TERMS_VERSION, LEGAL_PENDING } from "./lib/legal.js";
-import { captureBonoFromUrl, getStoredBono, clearStoredBono, describeAccess } from "./lib/access.js";
+import { captureBonoFromUrl, getStoredBono, clearStoredBono, describeAccess, setWriteAccess } from "./lib/access.js";
+import TrialBanner from "./components/TrialBanner.jsx";
 import Dashboard from "./tabs/Dashboard.jsx";
 import TransactionsTab from "./tabs/Transactions.jsx";
 import GoalsTab from "./tabs/Goals.jsx";
@@ -109,6 +110,12 @@ export default function App() {
 
   const userId = session?.user?.id;
 
+  // Guarda el acceso y actualiza el guard de escritura del cliente (lib/access.js).
+  const updateAccess = (acc) => {
+    setWriteAccess(describeAccess(acc).canWrite);
+    setAccess(acc);
+  };
+
   // Carga todos los datos del usuario (solo se llama con acceso ya activado).
   const loadAll = async (acc) => {
     let cats = await fetchCategories(userId);
@@ -146,7 +153,7 @@ export default function App() {
         try { acc = await activateTrial(stored); } catch { /* código inválido: lo pedirá la pantalla de activación */ }
         clearStoredBono();
       }
-      setAccess(acc);
+      updateAccess(acc);
       // Los datos solo se cargan si ya aceptó la versión vigente de los textos legales.
       const consentOk = acc && acc.terms_version === TERMS_VERSION;
       if (acc && consentOk && acc.status !== "pending") await loadAll(acc);
@@ -163,7 +170,7 @@ export default function App() {
 
   // Después de aceptar los Términos y la Política de datos
   const handleConsent = async (row) => {
-    setAccess(row);
+    updateAccess(row);
     if (row.status === "pending") return; // seguirá la pantalla de activación
     setLoadingData(true);
     setLoadError("");
@@ -175,7 +182,7 @@ export default function App() {
   const handleDeleted = async () => {
     try { await supabase.auth.signOut({ scope: "local" }); } catch { /* la cuenta ya no existe */ }
     setIsProfileOpen(false);
-    setAccess(null);
+    updateAccess(null);
     setNeedsOnboarding(false);
     setCategories([]); setTransactions([]); setGoals([]); setContributions([]); setInvestments([]);
     setBudget(DEFAULT_BUDGET);
@@ -186,7 +193,7 @@ export default function App() {
 
   // Después de activar el código manualmente
   const handleActivated = async (row) => {
-    setAccess(row);
+    updateAccess(row);
     setLoadingData(true);
     setLoadError("");
     try { await loadAll(row); } catch (err) { setLoadError(err?.message || "No se pudieron cargar tus datos."); }
@@ -369,17 +376,7 @@ export default function App() {
           </div>
         )}
 
-        {(accessInfo.state === "expired" || (accessInfo.state === "trial" && accessInfo.daysLeft <= 14)) && (
-          <div style={{
-            marginBottom: 12, padding: "10px 14px", borderRadius: 8, fontSize: 13, lineHeight: 1.5,
-            background: accessInfo.state === "expired" ? C.coralSoft : C.paper,
-            border: `1px solid ${accessInfo.state === "expired" ? C.coral : C.line}`, color: C.ink,
-          }}>
-            {accessInfo.state === "expired"
-              ? "Tu acceso de prueba venció. Puedes ver y exportar tus datos, pero ya no registrar cambios."
-              : `Tu acceso de prueba vence en ${accessInfo.daysLeft} ${accessInfo.daysLeft === 1 ? "día" : "días"}.`}
-          </div>
-        )}
+        <TrialBanner accessInfo={accessInfo} />
 
         <div style={{ background: C.paper, borderRadius: 12, border: `1px solid ${C.line}`, overflow: "hidden" }}>
           {/* Header */}
@@ -433,7 +430,6 @@ export default function App() {
                 setPeriod={setPeriod} 
                 payDay={payDay} 
                 incomeAnchors={incomeAnchors} 
-                userData={access} // <--- CAMBIADO DE userData={userData} A userData={access}
               />
             )}
             {tab === "transacciones" && (

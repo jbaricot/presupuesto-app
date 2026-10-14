@@ -264,7 +264,7 @@ export default function TransactionsTab({
           <Download size={14} /> Exportar CSV
         </Btn>
         <Btn variant="ghost" onClick={() => setIsImportModalOpen(true)}>
-          <Upload size={14} /> Importar CSV
+          <Upload size={14} /> Importar extracto Davivienda
         </Btn>
       </div>
 

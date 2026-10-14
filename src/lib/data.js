@@ -15,6 +15,7 @@
  * que el componente que llama decida cómo mostrarlo (alert, toast, etc.).
  */
 import { supabase } from "../supabaseClient.js";
+import { assertWritable } from "./access.js";
 
 /* ============ ACCESO (bono de prueba) ============ */
 export async function fetchAccess(userId) {
@@ -49,6 +50,7 @@ export async function fetchCategories(userId) {
 }
 
 export async function seedDefaultCategories(userId, defaults) {
+  assertWritable();
   // La tabla `categories` solo tiene name/type (no hay columna description).
   const rows = defaults.map((c) => ({ user_id: userId, name: c.name, type: c.type }));
   const { data, error } = await supabase.from("categories").insert(rows).select();
@@ -57,18 +59,21 @@ export async function seedDefaultCategories(userId, defaults) {
 }
 
 export async function addCategory(userId, { name, type }) {
+  assertWritable();
   const { data, error } = await supabase.from("categories").insert({ user_id: userId, name, type }).select().single();
   if (error) throw error;
   return data;
 }
 
 export async function updateCategory(id, { name, type }) {
+  assertWritable();
   const { data, error } = await supabase.from("categories").update({ name, type }).eq("id", id).select().single();
   if (error) throw error;
   return data;
 }
 
 export async function deleteCategory(id) {
+  assertWritable();
   const { error } = await supabase.from("categories").delete().eq("id", id);
   if (error) throw error;
 }
@@ -81,18 +86,21 @@ export async function fetchTransactions(userId) {
 }
 
 export async function addTransaction(userId, row) {
+  assertWritable();
   const { data, error } = await supabase.from("transactions").insert({ user_id: userId, ...row }).select().single();
   if (error) throw error;
   return data;
 }
 
 export async function updateTransaction(id, row) {
+  assertWritable();
   const { data, error } = await supabase.from("transactions").update(row).eq("id", id).select().single();
   if (error) throw error;
   return data;
 }
 
 export async function deleteTransaction(id) {
+  assertWritable();
   const { error } = await supabase.from("transactions").delete().eq("id", id);
   if (error) throw error;
 }
@@ -109,6 +117,7 @@ export async function fetchGoals(userId) {
 }
 
 export async function addGoal(userId, { name, total, dueDate, parentGoalId }) {
+  assertWritable();
   const { data, error } = await supabase.from("goals").insert({ 
     user_id: userId, 
     name, 
@@ -121,11 +130,13 @@ export async function addGoal(userId, { name, total, dueDate, parentGoalId }) {
 }
 
 export async function deleteGoal(id) {
+  assertWritable();
   const { error } = await supabase.from("goals").delete().eq("id", id);
   if (error) throw error;
 }
 
 export async function updateGoal(id, { name, total, dueDate, parentGoalId }) {
+  assertWritable();
   const { data, error } = await supabase.from("goals").update({
     name,
     target_total: total,
@@ -148,6 +159,7 @@ export async function fetchContributions(userId) {
 }
 
 export async function addContribution(userId, { goalId, period, value, transactionId }) {
+  assertWritable();
   const { data, error } = await supabase.from("goal_contributions").insert({ 
     user_id: userId, 
     goal_id: goalId, 
@@ -160,12 +172,14 @@ export async function addContribution(userId, { goalId, period, value, transacti
 }
 
 export async function updateContribution(id, row) {
+  assertWritable();
   const { data, error } = await supabase.from("goal_contributions").update(row).eq("id", id).select().single();
   if (error) throw error;
   return data;
 }
 
 export async function deleteContribution(id) {
+  assertWritable();
   const { error } = await supabase.from("goal_contributions").delete().eq("id", id);
   if (error) throw error;
 }
@@ -183,18 +197,21 @@ export async function fetchInvestments(userId) {
 }
 
 export async function addInvestment(userId, row) {
+  assertWritable();
   const { data, error } = await supabase.from("investments").insert({ user_id: userId, ...row }).select().single();
   if (error) throw error;
   return data;
 }
 
 export async function updateInvestment(id, row) {
+  assertWritable();
   const { data, error } = await supabase.from("investments").update(row).eq("id", id).select().single();
   if (error) throw error;
   return data;
 }
 
 export async function deleteInvestment(id) {
+  assertWritable();
   const { error } = await supabase.from("investments").delete().eq("id", id);
   if (error) throw error;
 }
@@ -207,6 +224,7 @@ export async function fetchBudget(userId) {
 }
 
 export async function upsertBudget(userId, row) {
+  assertWritable();
   const { data, error } = await supabase.from("budget").upsert({ user_id: userId, ...row, updated_at: new Date().toISOString() }).select().single();
   if (error) throw error;
   return data;
