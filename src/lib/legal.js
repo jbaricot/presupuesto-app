@@ -16,7 +16,6 @@ export const TERMS_VERSION = "2026-10-13";
 export const LEGAL = {
   app: "Mi Libro de Cuentas",
   responsable: "Jonathan Baricot Hernandez",
-  documento: "CC 1127622282",
   domicilio: "Bogotá, Colombia",
   correo: "soportemilibrodecuentas@gmail.com",
   regionServidores: "Estados Unidos (us-east-1)",
@@ -37,7 +36,7 @@ export const POLICY = {
     {
       h: "1. Responsable del tratamiento",
       p: [
-        `${L.responsable}, identificado(a) con ${L.documento}, con domicilio en ${L.domicilio}, es el responsable del tratamiento de los datos personales que se recogen a través de ${L.app}.`,
+        `${L.responsable}, con domicilio en ${L.domicilio}, es el responsable del tratamiento de los datos personales que se recogen a través de ${L.app}.`,
         `Canal para consultas, reclamos y solicitudes: ${L.correo}.`,
       ],
     },
