@@ -15,11 +15,11 @@ export const TERMS_VERSION = "2026-10-13";
 
 export const LEGAL = {
   app: "Mi Libro de Cuentas",
-  responsable: "[COMPLETAR: nombre completo del responsable]",
-  documento: "[COMPLETAR: cédula o NIT]",
-  domicilio: "[COMPLETAR: ciudad, Colombia]",
-  correo: "[COMPLETAR: correo para consultas, reclamos y soporte]",
-  regionServidores: "[COMPLETAR: región de Supabase, p. ej. Estados Unidos (us-east-1)]",
+  responsable: "Jonathan Baricot Hernandez",
+  documento: "CC 1127622282",
+  domicilio: "Bogotá, Colombia",
+  correo: "soportemilibrodecuentas@gmail.com",
+  regionServidores: "Estados Unidos (us-east-1)",
   vigenteDesde: "13 de octubre de 2026",
 };
 
