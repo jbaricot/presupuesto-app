@@ -89,33 +89,45 @@ export default function TransactionsTab({
     };
   }, [transactions, period]);
 
+  // Exporta los movimientos del período. Separador ";" y decimales con coma
+  // para que Excel en español lo abra directamente en columnas.
   const exportToCSV = () => {
     if (periodTx.length === 0) {
       alert("No hay movimientos en este período para exportar.");
       return;
     }
 
+    // Texto: se entrecomilla si trae ; " o saltos de línea, y se neutraliza
+    // si empieza con = + - @ (Excel lo interpretaría como fórmula).
+    const text = (v) => {
+      let str = String(v ?? "");
+      if (/^[=+\-@]/.test(str)) str = "'" + str;
+      return /[;"\r\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    };
+    const num = (v) => String(Number(v || 0)).replace(".", ",");
+
     const headers = ["Fecha", "Nombre", "Tipo", "Categoría", "Método de Pago", "Valor", "Pagado"];
     const rows = periodTx.map(t => [
-      t.date || "",
-      `"${(t.name || "").replace(/"/g, '""')}"`,
-      t.type,
-      `"${(t.category || "").replace(/"/g, '""')}"`,
-      t.payment_method || "",
-      t.value,
+      text(t.date),
+      text(t.name),
+      text(t.type),
+      text(t.category),
+      text(t.payment_method),
+      num(t.value),
       t.paid ? "Sí" : "No"
     ]);
 
-    const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const csvContent = [headers.join(";"), ...rows.map(r => r.join(";"))].join("\r\n");
     const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    
+
     const link = document.createElement("a");
     link.setAttribute("href", url);
     link.setAttribute("download", `transacciones_${period}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const submit = async (e) => {

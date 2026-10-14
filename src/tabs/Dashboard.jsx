@@ -178,8 +178,18 @@ export default function Dashboard({ transactions, goals, contributions, investme
       matrix[tType][tCat][mIndex] += Number(t.value || 0);
     });
 
+    // CSV con ";" como separador y coma decimal (Excel en español).
+    // Texto entrecomillado si trae ; " o saltos de línea; se neutralizan = + - @ iniciales.
+    const text = (v) => {
+      let str = String(v ?? "");
+      if (/^[=+\-@]/.test(str)) str = "'" + str;
+      return /[;"\r\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    };
+    const num = (v) => (v === "" || v === null || v === undefined ? "" : String(v).replace(".", ","));
+    const line = (cells) => cells.join(";");
+
     const headers = ["GRUPO", "CATEGORÍA", "PRESUPUESTO", ...headerMonths];
-    const rows = [headers.join(",")];
+    const rows = [line(headers.map(text))];
 
     const addGroup = (groupKey, groupName, isExpense) => {
       const categories = Object.keys(matrix[groupKey]).sort();
@@ -188,13 +198,13 @@ export default function Dashboard({ transactions, goals, contributions, investme
       categories.forEach(cat => {
         const vals = matrix[groupKey][cat];
         vals.forEach((v, i) => subtotal[i] += v);
-        const formattedVals = vals.map(v => v === 0 ? "" : (isExpense ? -v : v));
-        rows.push(`"${groupName}","${cat}","",${formattedVals.join(",")}`);
+        const formattedVals = vals.map(v => v === 0 ? "" : num(isExpense ? -v : v));
+        rows.push(line([text(groupName), text(cat), "", ...formattedVals]));
       });
 
       if (groupKey === "ingreso" && categories.length > 0) {
-        const formattedVals = subtotal.map(v => v === 0 ? "" : v);
-        rows.push(`"TOTAL INGRESOS","", "",${formattedVals.join(",")}`);
+        const formattedVals = subtotal.map(v => v === 0 ? "" : num(v));
+        rows.push(line([text("TOTAL INGRESOS"), "", "", ...formattedVals]));
       }
 
       return subtotal;
@@ -210,9 +220,9 @@ export default function Dashboard({ transactions, goals, contributions, investme
       return inSub[i] - fixSub[i] - varSub[i] - credSub[i] - provSub[i];
     });
 
-    rows.push(`"FLUJO NETO","", "",${netFlow.map(v => v === 0 ? "" : v).join(",")}`);
+    rows.push(line([text("FLUJO NETO"), "", "", ...netFlow.map(v => v === 0 ? "" : num(v))]));
 
-    const csvContent = rows.join("\n");
+    const csvContent = rows.join("\r\n");
     const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -221,6 +231,7 @@ export default function Dashboard({ transactions, goals, contributions, investme
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const rateColor = (v, good, ok) => (v >= good ? C.sage : v >= ok ? C.gold : C.coral);
