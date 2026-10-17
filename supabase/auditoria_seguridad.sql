@@ -71,6 +71,12 @@ select '12. Todo usuario tiene su fila de acceso',
        count(*) || ' usuarios sin fila'
 from auth.users u where not exists (select 1 from public.user_access a where a.user_id = u.id)
 union all
+select '15. Usuarios autenticados SÍ pueden ejecutar las funciones que la app necesita',
+       case when count(*) = 0 then 'OK' else 'REVISAR' end,
+       coalesce(string_agg(f, ', '), 'todas ejecutables (sin esto, guardar falla con permission denied)')
+from funciones where f in ('has_write_access()', 'activate_trial(text)', 'accept_terms(text)', 'delete_my_account()')
+  and not has_function_privilege('authenticated', ('public.' || f)::regprocedure, 'EXECUTE')
+union all
 select '13. (Informativo) cuentas por estado de acceso', 'MIRAR',
        coalesce(string_agg(status || '=' || n, ', '), 'sin cuentas')
 from (select status, count(*) n from public.user_access group by status) s

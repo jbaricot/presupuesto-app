@@ -1,0 +1,49 @@
+diff --git a/supabase/auditoria_seguridad.sql b/supabase/auditoria_seguridad.sql
+index 18be0be..6e12bcc 100644
+--- a/supabase/auditoria_seguridad.sql
++++ b/supabase/auditoria_seguridad.sql
+@@ -71,6 +71,12 @@ select '12. Todo usuario tiene su fila de acceso',
+        count(*) || ' usuarios sin fila'
+ from auth.users u where not exists (select 1 from public.user_access a where a.user_id = u.id)
+ union all
++select '15. Usuarios autenticados SÍ pueden ejecutar las funciones que la app necesita',
++       case when count(*) = 0 then 'OK' else 'REVISAR' end,
++       coalesce(string_agg(f, ', '), 'todas ejecutables (sin esto, guardar falla con permission denied)')
++from funciones where f in ('has_write_access()', 'activate_trial(text)', 'accept_terms(text)', 'delete_my_account()')
++  and not has_function_privilege('authenticated', ('public.' || f)::regprocedure, 'EXECUTE')
++union all
+ select '13. (Informativo) cuentas por estado de acceso', 'MIRAR',
+        coalesce(string_agg(status || '=' || n, ', '), 'sin cuentas')
+ from (select status, count(*) n from public.user_access group by status) s
+diff --git a/supabase/migration_v7_alinear_esquema.sql b/supabase/migration_v7_alinear_esquema.sql
+index 2be2ae8..cb2daab 100644
+--- a/supabase/migration_v7_alinear_esquema.sql
++++ b/supabase/migration_v7_alinear_esquema.sql
+@@ -7,7 +7,10 @@
+ --      columnas, guardar Presupuesto falla en un proyecto nuevo.
+ --   2. `transactions`: el CHECK de tipos incluye 'imprevistos'.
+ --   3. Cierra la ejecución pública de la función del trigger de usuarios
+---      nuevos (la auditoría de seguridad la marcaba como REVISAR).
++--      nuevos (la auditoría de seguridad la marcaba como REVISAR) y reafirma
++--      que los usuarios autenticados SÍ pueden ejecutar las funciones que
++--      la app necesita (has_write_access, activate_trial, accept_terms,
++--      delete_my_account).
+ --   4. `access_codes`: política explícita que niega la lectura directa
+ --      (el comportamiento no cambia; silencia el aviso del linter de Supabase).
+ --
+@@ -24,6 +27,15 @@ alter table public.transactions add constraint transactions_type_check
+ 
+ revoke all on function public.handle_new_user_access() from public, anon, authenticated;
+ 
++-- Reafirma los permisos de ejecución que la app necesita. Las políticas RLS
++-- llaman a has_write_access() con el rol del usuario: si `authenticated` no
++-- puede ejecutarla, TODA escritura falla con
++-- "permission denied for function has_write_access".
++grant execute on function public.has_write_access() to authenticated;
++grant execute on function public.activate_trial(text) to authenticated;
++grant execute on function public.accept_terms(text) to authenticated;
++grant execute on function public.delete_my_account() to authenticated;
++
+ drop policy if exists "Sin acceso directo" on public.access_codes;
+ create policy "Sin acceso directo" on public.access_codes for select using (false);
+ 
