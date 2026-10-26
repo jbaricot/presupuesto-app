@@ -359,11 +359,11 @@ export default function TransactionsTab({
             </Field>
 
             {/* ACTUALIZADO: El checkbox de pagado ahora se muestra para gastos esenciales */}
-            {form.type === "gastos_esenciales" && (
+            {/* {form.type === "gastos_esenciales" && (
               <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.inkSoft, fontWeight: 600 }}>
                 <input type="checkbox" checked={form.paid} onChange={(e) => setForm({ ...form, paid: e.target.checked })} disabled={saving} /> ¿Pagado?
               </label>
-            )}
+            )} */}
 
             <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
               <Btn type="submit" disabled={saving}><Plus size={14} /> {saving ? "Guardando..." : (editingId ? "Guardar cambios" : "Agregar")}</Btn>
